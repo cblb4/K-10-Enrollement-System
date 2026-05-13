@@ -1,0 +1,1349 @@
+/**
+ * registrar.js
+ * Handles all Registrar workflows. All data ops go through HLC_STORAGE.
+ *
+ * Required reusable functions per spec:
+ *   - addStudent(data)                 → defined here
+ *   - updateStatus(studentId, status)  → defined here
+ *
+ * Scope (academic / enrollment-only)
+ * ----------------------------------
+ * The registrar owns enrollment, curriculum, and the academic GSA — the
+ * "Generated Schedule and Assessment" that lists a student's assigned
+ * subjects, applied fee names, section, and status. The registrar does
+ * NOT see fee amounts, balances, payment statuses, or transaction history;
+ * those live in the cashier module.
+ *
+ * Data flow:
+ *   - Subjects (curriculum) are defined here and assigned to students; each
+ *     assignment becomes a zero-amount entry on student.charges with
+ *     source:'subject'.
+ *   - Misc fees applied to students (school-wide / grade-level / optional)
+ *     are managed by the cashier. The registrar's GSA shows them by name
+ *     only — never the amount.
+ *   - K–10 follows a fixed tuition structure, so subjects do NOT carry
+ *     individual fees. School-wide tuition / activity fees are handled
+ *     via the cashier's Charges & Fees catalog, which auto-applies on
+ *     enrollment via applySchoolWideFees().
+ */
+(function () {
+  'use strict';
+
+  // ----- Auth guard FIRST -----
+  const me = window.HLC_AUTH.requireRole('registrar', '../../auth.html');
+  if (!me) return;
+
+  const { Students, Subjects, assignSubjectsToStudent, logActivity } = window.HLC_STORAGE;
+  const U = window.HLC_UTILS;
+  const CFG = window.HLC_CONFIG;
+  const $ = U.$, $$ = U.$$;
+
+  // ----- Render shared chrome -----
+  window.HLC_LOGO.renderLogo('#sidebar-logo');
+  renderUserStrip();
+
+  function renderUserStrip() {
+    const host = $('#user-strip');
+    host.className = 'user-strip';
+    host.innerHTML = `
+      <div class="name">${escapeHtml(me.fullName)}</div>
+      <div class="email">${escapeHtml(me.email)}</div>
+      <button class="logout-btn" id="logout-btn">Sign Out</button>
+    `;
+    $('#logout-btn').addEventListener('click', () => {
+      window.HLC_AUTH.logout();
+      window.location.replace('../../auth.html');
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ----------- Reusable domain functions (per spec) -----------
+
+  function addStudent(data) {
+    const activeSY = window.HLC_STORAGE.getActiveSchoolYear();
+    const student = {
+      id: U.generateId('stu'),
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      middleName: (data.middleName || '').trim(),
+      birthDate: data.birthDate,
+      gender: data.gender,
+      gradeLevel: data.gradeLevel,
+      guardianName: data.guardianName.trim(),
+      contact: data.contact.trim(),
+      address: data.address.trim(),
+      notes: (data.notes || '').trim(),
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      paymentMode: 'full',
+      section: null,
+      charges: [],
+      schoolYear: activeSY,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    Students.create(student);
+    // Auto-apply every school-wide misc fee on enrollment
+    const applied = window.HLC_STORAGE.applySchoolWideFees(student.id);
+    logActivity('registrar', 'student.create', `${student.firstName} ${student.lastName} (${student.gradeLevel}, ${activeSY}) — ${applied.length} school fee(s) auto-applied`);
+    return student;
+  }
+
+  function updateStatus(studentId, status) {
+    const updated = Students.update(studentId, { status });
+    if (updated) logActivity('registrar', 'student.status', `${updated.firstName} ${updated.lastName} → ${status}`);
+    return updated;
+  }
+
+  function fullName(s) {
+    return [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
+  }
+
+  // ----------- View routing -----------
+  function setActiveView(name) {
+    $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    $$('.nav-list button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    const titles = {
+      dashboard: ['Front Desk', 'Dashboard'],
+      enroll:    ['New Record', 'Enrollment Form'],
+      students:  ['Records', 'Student Directory'],
+      gsa:       ['Academic', 'Student GSA'],
+      subjects:  ['Curriculum', 'Subjects'],
+      import:    ['Bulk Operations', 'Bulk Import']
+    };
+    const [eyebrow, title] = titles[name] || titles.dashboard;
+    $('#page-eyebrow').textContent = eyebrow;
+    $('#page-title').textContent = title;
+    if (name === 'dashboard')  renderDashboard();
+    if (name === 'students')   renderStudentTable();
+    if (name === 'gsa')        renderGSA();
+    if (name === 'subjects')   renderSubjectsList();
+    if (name === 'import')     { /* nothing to render; handlers wire on init */ }
+  }
+
+  // ----------- Dashboard -----------
+  function renderDashboard() {
+    const all = Students.getAll();
+    const stats = $('#reg-stats');
+    U.clearNode(stats);
+
+    const tiles = [
+      { label: 'Total Students',   value: all.length },
+      { label: 'Pending Approval', value: all.filter(s => s.status === 'pending').length },
+      { label: 'Enrolled',         value: all.filter(s => s.status === 'enrolled' || s.status === 'approved').length, gold: true },
+      { label: 'Subjects in Catalog', value: Subjects.getAll().length }
+    ];
+    tiles.forEach(t => {
+      const node = U.el('div', { class: 'stat' + (t.gold ? ' gold' : '') }, [
+        U.el('div', { class: 'label' }, t.label),
+        U.el('div', { class: 'value' }, String(t.value))
+      ]);
+      stats.appendChild(node);
+    });
+
+    const recent = all.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+    const host = $('#recent-enrollments');
+    U.clearNode(host);
+    if (!recent.length) {
+      host.appendChild(emptyState('No enrollments yet', 'Use “New Enrollment” to add the first student.'));
+      return;
+    }
+    recent.forEach(s => {
+      host.appendChild(U.el('div', { class: 'recent-row' }, [
+        U.el('div', { class: 'name' }, fullName(s)),
+        U.el('div', { class: 'grade' }, s.gradeLevel),
+        statusPill(s.status),
+        U.el('div', { class: 'when' }, U.formatDate(s.createdAt))
+      ]));
+    });
+  }
+
+  function statusPill(status) {
+    return U.el('span', { class: 'pill pill-' + status }, status);
+  }
+
+  function emptyState(title, msg) {
+    return U.el('div', { class: 'empty' }, [
+      U.el('div', { class: 'ico' }, '✦'),
+      U.el('div', { class: 'title' }, title),
+      U.el('div', {}, msg)
+    ]);
+  }
+
+  // ----------- Enrollment form -----------
+  function initEnrollForm() {
+    const grade = $('#gradeLevel');
+    CFG.GRADE_LEVELS.forEach(g => grade.appendChild(U.el('option', { value: g }, g)));
+
+    $('#enroll-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = Object.fromEntries(fd.entries());
+      const required = ['firstName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address'];
+      for (const k of required) {
+        if (!U.isNonEmpty(data[k])) {
+          U.toast(`Please fill in: ${k.replace(/([A-Z])/g, ' $1').toLowerCase()}`, 'error');
+          return;
+        }
+      }
+      const created = addStudent(data);
+      U.toast(`Enrolled: ${fullName(created)}`, 'success');
+      e.target.reset();
+      setActiveView('students');
+    });
+  }
+
+  // ----------- Student table -----------
+  function renderStudentTable(filter) {
+    const tbody = $('#students-tbl tbody');
+    U.clearNode(tbody);
+    const all = Students.getAll();
+    const f = (filter || '').toLowerCase().trim();
+    const list = !f ? all : all.filter(s =>
+      fullName(s).toLowerCase().includes(f) ||
+      (s.gradeLevel || '').toLowerCase().includes(f) ||
+      (s.status || '').toLowerCase().includes(f) ||
+      (s.guardianName || '').toLowerCase().includes(f)
+    );
+
+    if (!list.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.appendChild(emptyState('No students found', f ? 'Try a different search term.' : 'Add your first student through New Enrollment.'));
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(s => {
+      const tr = document.createElement('tr');
+      tr.appendChild(U.el('td', {}, [
+        U.el('div', { style: 'font-weight:500;color:var(--ink-900);' }, fullName(s)),
+        U.el('div', { style: 'font-size:0.78rem;color:var(--ink-500);' }, s.gender + ' · ' + U.formatDate(s.birthDate))
+      ]));
+      tr.appendChild(U.el('td', {}, s.gradeLevel));
+      tr.appendChild(U.el('td', {}, [
+        U.el('div', {}, s.guardianName),
+        U.el('div', { style: 'font-size:0.78rem;color:var(--ink-500);' }, s.contact)
+      ]));
+      const statusTd = document.createElement('td');
+      statusTd.appendChild(statusPill(s.status));
+      tr.appendChild(statusTd);
+      tr.appendChild(U.el('td', {}, U.formatDate(s.createdAt)));
+
+      const actions = U.el('td', { class: 'actions' });
+      actions.appendChild(U.el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openStudentModal(s.id) }, 'View'));
+      actions.appendChild(U.el('button', {
+        class: 'btn btn-accent btn-sm',
+        style: 'margin-left:6px;',
+        onclick: () => openAssignModal(s.id)
+      }, 'Assign Subjects'));
+      actions.appendChild(U.el('button', {
+        class: 'btn btn-ghost btn-sm',
+        style: 'margin-left:6px;',
+        onclick: () => openGradeChangeModal(s.id)
+      }, 'Change Grade'));
+      if (s.status === 'pending') {
+        actions.appendChild(U.el('button', {
+          class: 'btn btn-primary btn-sm',
+          style: 'margin-left:6px;',
+          onclick: () => { updateStatus(s.id, 'approved'); U.toast('Marked as approved', 'success'); renderStudentTable($('#students-search').value); renderDashboard(); }
+        }, 'Approve'));
+      }
+      tr.appendChild(actions);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ----------- Student modal -----------
+  function openStudentModal(studentId) {
+    const s = Students.getById(studentId);
+    if (!s) return;
+    $('#sm-name').textContent = fullName(s);
+    const body = $('#sm-body');
+    U.clearNode(body);
+
+    const grid = U.el('div', { class: 'detail-grid' });
+    const fields = [
+      ['Grade Level', s.gradeLevel],
+      ['Status',      s.status],
+      ['Birth Date',  U.formatDate(s.birthDate)],
+      ['Gender',      s.gender],
+      ['Guardian',    s.guardianName],
+      ['Contact',     s.contact],
+      ['Address',     s.address],
+      ['Section',     s.section || '— Not assigned —']
+    ];
+    fields.forEach(([k, v]) => {
+      grid.appendChild(U.el('div', {}, [
+        U.el('div', { class: 'lbl' }, k),
+        U.el('div', { class: 'val' }, v || '—')
+      ]));
+    });
+    body.appendChild(grid);
+
+    if (s.notes) {
+      body.appendChild(U.el('div', { class: 'lbl' }, 'Notes'));
+      body.appendChild(U.el('div', { style: 'margin-bottom:18px;font-size:0.92rem;color:var(--ink-700);' }, s.notes));
+    }
+
+    const mini = U.el('div', { class: 'charges-mini' });
+    // Registrar sees the academic side: subjects (curriculum) and the names
+    // of any fees applied to this student. Amounts, balances, payment status,
+    // and transaction history live in the cashier module — not here.
+    const subjectEntries = (s.charges || []).filter(c => c.source === 'subject');
+    const feeEntries     = (s.charges || []).filter(c => c.source !== 'subject');
+
+    mini.appendChild(U.el('h4', {}, `Curriculum & Applied Items (${(s.charges || []).length})`));
+    if (!s.charges || !s.charges.length) {
+      mini.appendChild(U.el('div', { style: 'font-size:0.85rem;color:var(--ink-500);' }, 'No subjects assigned and no fees applied yet.'));
+    } else {
+      if (subjectEntries.length) {
+        mini.appendChild(U.el('div', { class: 'charge-group-label' }, 'Subjects'));
+        subjectEntries.forEach(c => {
+          const left = U.el('div', { class: 'charge-title' }, c.title);
+          mini.appendChild(U.el('div', { class: 'charge-row charge-row-academic' }, [left]));
+        });
+      }
+      if (feeEntries.length) {
+        mini.appendChild(U.el('div', { class: 'charge-group-label' }, 'Applied fees'));
+        feeEntries.forEach(c => {
+          const desc = c.description ? U.el('div', { class: 'charge-desc' }, c.description) : null;
+          const titleRow = U.el('div', { class: 'charge-title' }, c.title);
+          const left = U.el('div', {}, [titleRow, desc].filter(Boolean));
+          mini.appendChild(U.el('div', { class: 'charge-row charge-row-academic' }, [left]));
+        });
+      }
+    }
+    body.appendChild(mini);
+
+    $('#student-modal').classList.add('open');
+  }
+
+  function closeModal() { $('#student-modal').classList.remove('open'); }
+
+  // ----------- Student GSA (academic schedule & assessment) -----------
+  // Registrar-side GSA: shows the curriculum and any fees applied to a student
+  // by NAME ONLY. Amounts, balances, payment status, and transaction history
+  // are intentionally absent — those live in the cashier module. The data
+  // source is the same student.charges[] array; we simply omit the monetary
+  // fields when rendering.
+  function renderGSA(filter) {
+    const host = $('#gsa-grid');
+    U.clearNode(host);
+
+    // Show every student that has either an enrolled status OR any curriculum/fee
+    // entry on file. We don't filter purely on charges.length because a freshly
+    // enrolled student may still be awaiting subject assignment.
+    const all = Students.getAll().filter(s =>
+      (Array.isArray(s.charges) && s.charges.length > 0) ||
+      s.status === 'approved' || s.status === 'enrolled'
+    );
+    const f = (filter || '').toLowerCase().trim();
+    const list = !f ? all : all.filter(s =>
+      fullName(s).toLowerCase().includes(f) ||
+      (s.gradeLevel || '').toLowerCase().includes(f) ||
+      (s.status || '').toLowerCase().includes(f)
+    );
+
+    if (!list.length) {
+      host.appendChild(U.el('div', { class: 'empty' }, [
+        U.el('div', { class: 'ico' }, '✦'),
+        U.el('div', { class: 'title' }, f ? 'No matching students' : 'No active GSAs yet'),
+        U.el('div', {}, f ? 'Try a different search.' : 'Once a student is enrolled and assigned subjects, their GSA appears here.')
+      ]));
+      return;
+    }
+
+    list.sort((a, b) => fullName(a).localeCompare(fullName(b))).forEach(s => {
+      host.appendChild(buildAcademicGSACard(s.id));
+    });
+  }
+
+  function buildAcademicGSACard(studentId, options) {
+    options = options || {};
+    const student = Students.getById(studentId);
+    if (!student) return document.createElement('div');
+
+    // Group charge entries by source — we only display titles, never amounts.
+    // Carry-over entries from prior promotions are pulled out into their own
+    // section below so they don't visually mix with the new grade's items.
+    const charges = student.charges || [];
+    const activeCharges = charges.filter(c => !c.isCarryOver && c.source !== 'discount');
+    const carryOverEntries = charges.filter(c => c.isCarryOver);
+
+    const subjectEntries = activeCharges.filter(c => c.source === 'subject');
+    const schoolWideEntries = activeCharges.filter(c => c.source === 'misc-fee' && c.feeScope === 'school');
+    const gradeLevelEntries = activeCharges.filter(c => c.source === 'misc-fee' && c.feeScope === 'grades');
+    const optionalEntries = activeCharges.filter(c => c.source === 'misc-fee' && c.feeScope === 'optional');
+    const otherEntries = activeCharges.filter(c =>
+      c.source !== 'subject' && c.source !== 'misc-fee'
+    );
+
+    const sectionLabel = student.section
+      ? (window.HLC_STORAGE.Sections.getById(student.section) || {}).name || '— Unassigned —'
+      : '— Unassigned —';
+
+    // Persist expand/collapse like the cashier version did.
+    const persistKey = 'hlc_reg_gsa_open_' + studentId;
+    let initiallyOpen = options.open;
+    if (initiallyOpen === undefined) {
+      const stored = localStorage.getItem(persistKey);
+      initiallyOpen = stored === '1';
+    }
+
+    const detailsAttrs = { class: 'gsa-card gsa-rich gsa-collapsible' };
+    if (initiallyOpen) detailsAttrs.open = '';
+    const card = U.el('details', detailsAttrs);
+    card.addEventListener('toggle', () => {
+      try { localStorage.setItem(persistKey, card.open ? '1' : '0'); } catch (e) {}
+    });
+
+    // ----- SUMMARY -----
+    const summary = U.el('summary', { class: 'gsa-summary' });
+    const chevron = U.el('span', { class: 'chev', 'aria-hidden': 'true' }, '▸');
+    const idText = U.el('span', { class: 'sum-id' }, '#' + student.id.replace(/^stu_/, '').toUpperCase());
+    const nameBlock = U.el('div', { class: 'sum-name-block' }, [
+      U.el('div', { class: 'sum-name' }, fullName(student)),
+      U.el('div', { class: 'sum-meta' }, `${student.gradeLevel} · ${student.guardianName || '—'}`)
+    ]);
+    const statusPill = U.el('span', { class: 'pill pill-' + student.status }, student.status);
+    // Right-side block: subject count instead of a balance amount.
+    const acadBlock = U.el('div', { class: 'sum-balance' }, [
+      U.el('div', { class: 'sum-balance-lbl' }, 'Subjects'),
+      U.el('div', { class: 'sum-balance-val zero' }, String(subjectEntries.length))
+    ]);
+
+    summary.appendChild(chevron);
+    summary.appendChild(nameBlock);
+    summary.appendChild(idText);
+    summary.appendChild(statusPill);
+    summary.appendChild(acadBlock);
+    card.appendChild(summary);
+
+    // ----- HEAD -----
+    const head = U.el('div', { class: 'gsa-doc-head' }, [
+      U.el('div', { class: 'title-block' }, [
+        U.el('div', { class: 'doc-eyebrow' }, 'Generated Schedule and Assessment'),
+        U.el('h3', { class: 'student-name' }, fullName(student)),
+        U.el('div', { class: 'student-meta' }, [
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'Student #'), student.id.replace(/^stu_/, '').toUpperCase()]),
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'Grade'),     student.gradeLevel]),
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'Section'),   sectionLabel]),
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'School Year'), student.schoolYear || '—']),
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'Guardian'),  student.guardianName || '—']),
+          U.el('div', {}, [U.el('span', { class: 'lbl' }, 'Contact'),   student.contact || '—'])
+        ])
+      ]),
+      U.el('div', { class: 'status-block' }, [
+        U.el('span', { class: 'pill pill-' + student.status, style: 'font-size:0.78rem; padding:4px 12px;' }, student.status),
+        U.el('div', { class: 'gen-date' }, 'Generated ' + U.formatDate(new Date().toISOString()))
+      ])
+    ]);
+    card.appendChild(head);
+
+    // ----- BODY -----
+    const body = U.el('div', { class: 'gsa-body' });
+    body.appendChild(buildAcademicSection('Subjects',          subjectEntries,    'No subjects assigned yet.'));
+    body.appendChild(buildAcademicSection('School-wide Fees',  schoolWideEntries, 'No school-wide fees applied.'));
+    if (gradeLevelEntries.length) {
+      body.appendChild(buildAcademicSection('Grade-level Fees', gradeLevelEntries, 'None'));
+    }
+    if (optionalEntries.length) {
+      body.appendChild(buildAcademicSection('Optional Fees',   optionalEntries,   'None'));
+    }
+    if (otherEntries.length) {
+      body.appendChild(buildAcademicSection('Other Items',     otherEntries,      'None'));
+    }
+    if (carryOverEntries.length) {
+      body.appendChild(buildCarryOverSection(carryOverEntries));
+    }
+    card.appendChild(body);
+
+    // ----- FOOTER -----
+    const foot = U.el('div', { class: 'gsa-doc-foot' }, [
+      U.el('div', { class: 'processed-by' }, [
+        U.el('div', {}, 'Prepared by'),
+        U.el('div', { class: 'name' }, me ? me.fullName : '—')
+      ]),
+      U.el('div', {}, 'HLC · Form-RA-01-00')
+    ]);
+    card.appendChild(foot);
+
+    // ----- ACTIONS -----
+    const actions = U.el('div', { class: 'gsa-actions-rich' });
+    actions.appendChild(U.el('button', {
+      class: 'btn btn-accent btn-sm',
+      onclick: (e) => { e.stopPropagation(); openAssignModal(student.id); }
+    }, 'Assign Subjects'));
+    actions.appendChild(U.el('button', {
+      class: 'btn btn-ghost btn-sm',
+      onclick: (e) => { e.stopPropagation(); printAcademicGSA(student.id); }
+    }, 'Print'));
+    card.appendChild(actions);
+
+    return card;
+  }
+
+  /**
+   * Render an academic GSA section: titles only, no amounts or payment status.
+   * The shared `gsa-line` styling is reused, but we add `gsa-line-academic`
+   * so the layout collapses cleanly without the right-side amount cell.
+   */
+  function buildAcademicSection(heading, entries, emptyMsg) {
+    const sec = U.el('div', { class: 'gsa-rich-section' });
+    sec.appendChild(U.el('h5', {}, [
+      U.el('span', {}, heading),
+      U.el('span', { class: 'subtotal subtotal-count' }, entries.length ? `${entries.length} item${entries.length === 1 ? '' : 's'}` : '')
+    ]));
+    if (!entries.length) {
+      sec.appendChild(U.el('div', { class: 'gsa-empty-line' }, emptyMsg));
+      return sec;
+    }
+    entries.forEach(c => {
+      sec.appendChild(U.el('div', { class: 'gsa-line gsa-line-academic' }, [
+        U.el('div', { class: 'lbl-block' }, [
+          U.el('div', { class: 'lbl' }, c.title),
+          c.category ? U.el('div', { class: 'lbl-cat' }, c.category)
+                     : (c.description ? U.el('div', { class: 'lbl-cat' }, c.description) : null)
+        ].filter(Boolean))
+      ]));
+    });
+    return sec;
+  }
+
+  /**
+   * Render a "Previous Term — Unsettled" section listing carry-over items
+   * by name, grouped by their original grade/school year. We never show
+   * amounts here — financial figures stay in the cashier module.
+   */
+  function buildCarryOverSection(entries) {
+    const sec = U.el('div', { class: 'gsa-rich-section gsa-carry-section' });
+    sec.appendChild(U.el('h5', {}, [
+      U.el('span', {}, 'Previous Term — Unsettled'),
+      U.el('span', { class: 'subtotal subtotal-count' }, `${entries.length} item${entries.length === 1 ? '' : 's'}`)
+    ]));
+
+    // Group by "Grade · SY" so a student promoted twice with leftover items
+    // from each term reads cleanly.
+    const groups = {};
+    entries.forEach(c => {
+      const key = `${c.originalGradeLevel || '—'} · ${c.originalSchoolYear || '—'}`;
+      (groups[key] = groups[key] || []).push(c);
+    });
+
+    Object.keys(groups).sort().forEach(key => {
+      sec.appendChild(U.el('div', { class: 'gsa-carry-group-label' }, key));
+      groups[key].forEach(c => {
+        sec.appendChild(U.el('div', { class: 'gsa-line gsa-line-academic gsa-line-carry' }, [
+          U.el('div', { class: 'lbl-block' }, [
+            U.el('div', { class: 'lbl' }, c.title),
+            U.el('div', { class: 'lbl-cat' }, 'Outstanding from previous term — see cashier')
+          ])
+        ]));
+      });
+    });
+    return sec;
+  }
+
+  /**
+   * Print-friendly window for the academic GSA. Mirrors the cashier's old
+   * print flow but renders the registrar's amount-free version of the card.
+   */
+  function printAcademicGSA(studentId) {
+    const card = buildAcademicGSACard(studentId, { open: true });
+    const student = Students.getById(studentId);
+    if (!student) {
+      U.toast('Could not generate GSA for this student', 'error');
+      return;
+    }
+    const studentName = fullName(student);
+    const cssUrl = new URL('../../assets/css/shared.css', window.location.href).href;
+
+    const w = window.open('', '_blank', 'width=820,height=1000');
+    if (!w) {
+      U.toast('Pop-up blocked — please allow pop-ups to print', 'error');
+      return;
+    }
+
+    w.document.open();
+    w.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GSA · ${escapeHtml(studentName)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="${cssUrl}">
+  <style>
+    body { background: var(--paper); padding: 32px; max-width: 820px; margin: 0 auto; }
+    .gsa-actions-rich { display: none !important; }
+    @media print {
+      body { padding: 0; max-width: none; }
+      .gsa-card.gsa-rich { border: 1px solid #999; box-shadow: none; }
+    }
+    .print-letterhead {
+      text-align: center;
+      padding: 12px 0 18px;
+      border-bottom: 2px solid var(--maroon-700);
+      margin-bottom: 18px;
+    }
+    .print-letterhead .school {
+      font-family: var(--font-display);
+      color: var(--maroon-900);
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .print-letterhead .tagline {
+      font-size: 0.78rem;
+      color: var(--ink-500);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-letterhead">
+    <div class="school">Heartworks Learning Center</div>
+    <div class="tagline">Generated Schedule and Assessment</div>
+  </div>
+  <div id="print-target"></div>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 250);
+    });
+  </script>
+</body>
+</html>`);
+    w.document.close();
+    const target = w.document.getElementById('print-target');
+    if (target) target.appendChild(card);
+  }
+
+  // ----------- Subjects view -----------
+  // The form serves both Add and Edit. When `#subj-edit-id` is non-empty,
+  // the form is in edit mode: submit calls Subjects.update() instead of
+  // Subjects.create().
+  function enterSubjectEditMode(sub) {
+    $('#subj-edit-id').value = sub.id;
+    $('#subj-name').value = sub.name;
+    $('#subj-grade').value = sub.gradeLevel;
+    $('#subj-desc').value = sub.description || '';
+
+    $('#subject-form-title').textContent = `Edit Subject — ${sub.name}`;
+    $('#subject-form-hint').textContent = 'Existing student assignments referencing this subject keep their original snapshot — only the catalog entry is updated.';
+    $('#subj-submit').textContent = 'Save Changes';
+    $('#subj-cancel-edit').style.display = '';
+    $('#subject-form-card').classList.add('editing');
+    $('#subject-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exitSubjectEditMode() {
+    $('#subj-edit-id').value = '';
+    $('#subject-form').reset();
+    $('#subject-form-title').textContent = 'Add a Subject';
+    $('#subject-form-hint').textContent = 'Subjects defined here can be assigned to students as part of their curriculum';
+    $('#subj-submit').textContent = 'Add Subject';
+    $('#subj-cancel-edit').style.display = 'none';
+    $('#subject-form-card').classList.remove('editing');
+  }
+
+  function initSubjectForm() {
+    const grade = $('#subj-grade');
+    CFG.GRADE_LEVELS.forEach(g => grade.appendChild(U.el('option', { value: g }, g)));
+
+    $('#subj-cancel-edit').addEventListener('click', exitSubjectEditMode);
+
+    $('#subject-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const editingId = $('#subj-edit-id').value;
+      const name  = $('#subj-name').value.trim();
+      const gradeLevel = $('#subj-grade').value;
+      const desc  = $('#subj-desc').value.trim();
+
+      if (!U.isNonEmpty(name))               return U.toast('Subject name is required', 'error');
+      if (!gradeLevel)                       return U.toast('Select a grade level', 'error');
+
+      // Uniqueness check: when editing, ignore the subject's own id.
+      const conflict = Subjects.getAll().find(s =>
+        s.name.toLowerCase() === name.toLowerCase()
+        && s.gradeLevel === gradeLevel
+        && s.id !== editingId
+      );
+      if (conflict) return U.toast('That subject already exists for this grade', 'error');
+
+      // -------- EDIT path --------
+      if (editingId) {
+        Subjects.update(editingId, { name, gradeLevel, description: desc });
+        logActivity('registrar', 'subject.edit', `${name} · ${gradeLevel}`);
+        U.toast(`Subject "${name}" updated`, 'success');
+        exitSubjectEditMode();
+        renderSubjectsList($('#subj-search').value);
+        return;
+      }
+
+      // -------- ADD path --------
+      const subject = {
+        id: U.generateId('sub'),
+        name,
+        gradeLevel,
+        // K–10 fixed tuition: subjects carry no per-subject fee.
+        // The 0 keeps the existing assignSubjectsToStudent bridge working
+        // (each assignment becomes a zero-amount curriculum entry).
+        fee: 0,
+        description: desc,
+        createdAt: new Date().toISOString()
+      };
+      Subjects.create(subject);
+      logActivity('registrar', 'subject.add', `${name} · ${gradeLevel}`);
+      U.toast(`Added subject: ${name}`, 'success');
+      e.target.reset();
+      renderSubjectsList();
+    });
+  }
+
+  function renderSubjectsList(filter) {
+    const host = $('#subjects-list');
+    U.clearNode(host);
+    const all = Subjects.getAll();
+    const f = (filter || '').toLowerCase().trim();
+    const list = !f ? all : all.filter(s =>
+      s.name.toLowerCase().includes(f) || s.gradeLevel.toLowerCase().includes(f)
+    );
+
+    if (!list.length) {
+      host.appendChild(emptyState('No subjects yet', f ? 'No matches.' : 'Use the form above to add your first subject.'));
+      return;
+    }
+
+    list.sort((a, b) => a.gradeLevel.localeCompare(b.gradeLevel) || a.name.localeCompare(b.name)).forEach(sub => {
+      const card = U.el('div', { class: 'subject-card' }, [
+        U.el('div', { class: 'grade' }, sub.gradeLevel),
+        U.el('h4', {}, sub.name),
+        sub.description ? U.el('div', { class: 'desc' }, sub.description) : null,
+        U.el('div', { class: 'actions' }, [
+          U.el('button', {
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => enterSubjectEditMode(sub)
+          }, 'Edit'),
+          U.el('button', {
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => deleteSubject(sub.id, sub.name)
+          }, 'Remove')
+        ])
+      ].filter(Boolean));
+      host.appendChild(card);
+    });
+  }
+
+  function deleteSubject(id, name) {
+    // Don't block on existing assignments — this just removes from catalog;
+    // already-assigned charges remain on student records.
+    if (!confirm(`Remove "${name}" from the catalog? Existing charges on students remain unchanged.`)) return;
+    Subjects.remove(id);
+    logActivity('registrar', 'subject.remove', name);
+    U.toast('Subject removed', 'success');
+    renderSubjectsList($('#subj-search').value);
+  }
+
+  // ----------- Assign Subjects modal -----------
+  function openAssignModal(studentId) {
+    const s = Students.getById(studentId);
+    if (!s) return;
+
+    $('#am-name').textContent = `Assign Subjects · ${fullName(s)}`;
+    $('#am-info').textContent = `Grade level: ${s.gradeLevel}. Selected subjects will be added to this student's curriculum on their account.`;
+
+    const host = $('#am-subjects');
+    U.clearNode(host);
+
+    const eligible = Subjects.getAll().filter(sub => sub.gradeLevel === s.gradeLevel);
+    const alreadyIds = new Set((s.charges || []).filter(c => c.source === 'subject').map(c => c.subjectId));
+
+    if (!eligible.length) {
+      host.appendChild(emptyState(
+        'No subjects defined for ' + s.gradeLevel,
+        'Add subjects for this grade in the Subjects panel first.'
+      ));
+      $('#am-submit').disabled = true;
+    } else {
+      $('#am-submit').disabled = false;
+      eligible.forEach(sub => {
+        const isAssigned = alreadyIds.has(sub.id);
+        const label = U.el('label', { class: isAssigned ? 'assigned' : '' }, [
+          U.el('div', { style: 'display:flex;align-items:center;gap:10px;' }, [
+            U.el('input', {
+              type: 'checkbox',
+              value: sub.id,
+              ...(isAssigned ? { disabled: 'disabled', checked: 'checked' } : {})
+            }),
+            U.el('div', { class: 'info' }, [
+              U.el('div', { class: 'nm' }, sub.name),
+              U.el('div', { class: 'gr' }, isAssigned ? 'Already assigned' : sub.description || sub.gradeLevel)
+            ])
+          ])
+        ]);
+        host.appendChild(label);
+      });
+    }
+
+    const submitBtn = $('#am-submit');
+    submitBtn.onclick = () => {
+      const checks = host.querySelectorAll('input[type="checkbox"]:not([disabled]):checked');
+      const ids = Array.from(checks).map(c => c.value);
+      if (!ids.length) {
+        U.toast('Select at least one subject to assign', 'error');
+        return;
+      }
+      const result = assignSubjectsToStudent(s.id, ids);
+      logActivity('registrar', 'subjects.assign', `${result.assigned.length} subject(s) → ${fullName(s)}`);
+      U.toast(`Assigned ${result.assigned.length} subject(s) to ${fullName(s)}`, 'success');
+      closeAssignModal();
+      renderStudentTable($('#students-search').value);
+      // If the GSA view is currently visible, refresh it too so the newly
+      // assigned subjects show up immediately under that student's card.
+      if ($('#view-gsa').classList.contains('active')) {
+        renderGSA($('#gsa-search').value);
+      }
+    };
+
+    $('#assign-modal').classList.add('open');
+  }
+  function closeAssignModal() { $('#assign-modal').classList.remove('open'); }
+
+  // ----------- Bulk import -----------
+  //
+  // Each import "kind" (students / subjects) has:
+  //   - an alias map: canonical field → list of header strings that should
+  //     map to that field. Header matching is case/space/punctuation
+  //     insensitive, so "First Name", "FNAME", "first_name", "first.name"
+  //     all resolve to firstName. See HLC_IMPORT.applyAliasMap.
+  //   - a validator: takes the alias-resolved row, returns
+  //     { valid, error?, normalized? } shaped for Storage.create().
+  //
+  // Headers in the alias map are matched flexibly; the canonical name
+  // itself is always an alias (so the original "firstName" header works
+  // unchanged).
+
+  const IMPORT_ALIASES = {
+    students: {
+      firstName:    ['first name', 'fname', 'given name', 'givenname'],
+      lastName:     ['last name', 'lname', 'surname', 'family name', 'familyname'],
+      middleName:   ['middle name', 'mname', 'middle initial', 'middleinitial', 'mi'],
+      birthDate:    ['birth date', 'date of birth', 'dob', 'birthday', 'birthdate', 'date_of_birth'],
+      gender:       ['sex'],
+      gradeLevel:   ['grade level', 'grade', 'year level', 'yearlevel', 'level', 'year'],
+      guardianName: ['guardian name', 'guardian', 'parent', 'parent name', 'parentname', 'parent/guardian', 'parentguardian'],
+      contact:      ['contact number', 'phone', 'phone number', 'phonenumber', 'mobile', 'mobile number', 'cellphone', 'cell', 'tel', 'telephone'],
+      address:      ['home address', 'homeaddress', 'residence', 'street address', 'streetaddress'],
+      notes:        ['remarks', 'comments', 'note']
+    },
+    subjects: {
+      name:        ['subject', 'subject name', 'subjectname', 'title'],
+      gradeLevel:  ['grade level', 'grade', 'year level', 'yearlevel', 'level'],
+      description: ['desc', 'details', 'about']
+    }
+  };
+
+  const IMPORT_VALIDATORS = {
+    students: (row) => {
+      const required = ['firstName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address'];
+      for (const k of required) {
+        if (row[k] === undefined || row[k] === null || String(row[k]).trim() === '') {
+          return { valid: false, error: 'Missing ' + k };
+        }
+      }
+
+      const gradeLevel = window.HLC_IMPORT.matchGradeLevel(row.gradeLevel, CFG.GRADE_LEVELS);
+      if (!gradeLevel) {
+        return { valid: false, error: 'Unknown grade: ' + row.gradeLevel };
+      }
+
+      const birthDate = window.HLC_IMPORT.toIsoDate(row.birthDate);
+      if (!birthDate) {
+        return { valid: false, error: 'Bad birthDate: ' + row.birthDate };
+      }
+
+      const gender = window.HLC_IMPORT.normalizeGender(row.gender);
+      if (gender !== 'Male' && gender !== 'Female') {
+        return { valid: false, error: 'Bad gender: ' + row.gender };
+      }
+
+      return {
+        valid: true,
+        normalized: {
+          firstName:    String(row.firstName).trim(),
+          lastName:     String(row.lastName).trim(),
+          middleName:   String(row.middleName || '').trim(),
+          birthDate,
+          gender,
+          gradeLevel,
+          guardianName: String(row.guardianName).trim(),
+          contact:      String(row.contact).trim(),
+          address:      String(row.address).trim(),
+          notes:        String(row.notes || '').trim()
+        }
+      };
+    },
+    subjects: (row) => {
+      if (!row.name || !String(row.name).trim()) return { valid: false, error: 'Missing name' };
+      if (!row.gradeLevel || !String(row.gradeLevel).trim()) return { valid: false, error: 'Missing gradeLevel' };
+      const gradeLevel = window.HLC_IMPORT.matchGradeLevel(row.gradeLevel, CFG.GRADE_LEVELS);
+      if (!gradeLevel) return { valid: false, error: 'Unknown grade: ' + row.gradeLevel };
+      return {
+        valid: true,
+        normalized: {
+          name: String(row.name).trim(),
+          gradeLevel,
+          // K–10 fixed tuition: subjects carry no per-subject fee.
+          fee: 0,
+          description: String(row.description || '').trim()
+        }
+      };
+    }
+  };
+
+  // Headers used in the downloadable .xlsx template and sample-row preview.
+  const IMPORT_TEMPLATES = {
+    students: {
+      headers: ['firstName', 'middleName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address', 'notes'],
+      samples: [
+        { firstName: 'Maria', middleName: 'Santos', lastName: 'Cruz', birthDate: '2014-05-12', gender: 'Female', gradeLevel: 'Grade 5', guardianName: 'Ana Cruz', contact: '09171234567', address: '123 Mabini St', notes: '' },
+        { firstName: 'Juan',  middleName: '',       lastName: 'Reyes', birthDate: '2013-08-22', gender: 'Male',   gradeLevel: 'Grade 6', guardianName: 'Pedro Reyes', contact: '09180000000', address: '45 Rizal Ave',  notes: '' }
+      ]
+    },
+    subjects: {
+      headers: ['name', 'gradeLevel', 'description'],
+      samples: [
+        { name: 'Mathematics 7', gradeLevel: 'Grade 7', description: 'Algebra and geometry' },
+        { name: 'English 7',     gradeLevel: 'Grade 7', description: '' }
+      ]
+    }
+  };
+
+  // Cache for parsed-and-validated rows between Preview and Import. Each
+  // entry: { results: [...], rawHeaders: [...], source: 'file:foo.xlsx' | 'paste' }
+  const importCache = { students: null, subjects: null };
+
+  // Track the last picked file per kind so the preview can show its name.
+  const importFiles = { students: null, subjects: null };
+
+  /**
+   * Read whatever's available (file > pasted text) into raw rows, then
+   * resolve aliases, run the validator, and stash the results. The same
+   * code path is used by the file picker and by the Preview button.
+   */
+  async function loadImportRows(kind) {
+    const ta = $('#ta-' + kind);
+    const file = importFiles[kind];
+
+    let parsed;
+    let source;
+
+    if (file) {
+      parsed = await window.HLC_IMPORT.readSpreadsheetFile(file);
+      source = 'file:' + file.name;
+    } else {
+      const text = ta ? ta.value : '';
+      if (!text.trim()) throw new Error('No file selected and no rows pasted.');
+      parsed = window.HLC_IMPORT.parsePastedText(text);
+      source = 'paste';
+    }
+
+    if (!parsed.rows.length) {
+      throw new Error('No data rows found — make sure you included a header row.');
+    }
+
+    const aliases = IMPORT_ALIASES[kind];
+    const validator = IMPORT_VALIDATORS[kind];
+
+    const results = parsed.rows.map(raw => {
+      const aliased = window.HLC_IMPORT.applyAliasMap(raw, aliases);
+      const v = validator(aliased);
+      return { raw, aliased, ...v };
+    });
+
+    return { results, rawHeaders: parsed.headers, source };
+  }
+
+  async function previewImport(kind) {
+    const previewHost = $('#preview-' + kind);
+    const commitBtn = document.querySelector(`[data-import-commit="${kind}"]`);
+
+    let bundle;
+    try {
+      bundle = await loadImportRows(kind);
+    } catch (err) {
+      previewHost.style.display = 'none';
+      commitBtn.disabled = true;
+      U.toast(err.message || 'Could not read import data', 'error');
+      return;
+    }
+
+    const { results, rawHeaders, source } = bundle;
+    const validCount = results.filter(r => r.valid).length;
+    const invalidCount = results.length - validCount;
+    importCache[kind] = bundle;
+
+    const mapping = window.HLC_IMPORT.diagnoseHeaderMapping(rawHeaders, IMPORT_ALIASES[kind]);
+
+    // Render preview
+    U.clearNode(previewHost);
+    previewHost.style.display = 'block';
+    previewHost.appendChild(U.el('h5', {}, 'Preview'));
+
+    // Header mapping ribbon — shows what got matched, what was ignored,
+    // and what's missing entirely. This is the single biggest UX win:
+    // when import fails users can see *why* in one glance.
+    const mappingBox = U.el('div', { class: 'mapping' });
+    mappingBox.appendChild(U.el('div', {}, [
+      U.el('strong', {}, 'Source: '),
+      document.createTextNode(source === 'paste' ? 'pasted text' : source.replace(/^file:/, '')),
+      document.createTextNode(' · ' + results.length + ' row(s)')
+    ]));
+
+    if (mapping.mapped.length) {
+      const row = U.el('div', { style: 'margin-top:6px;' });
+      row.appendChild(U.el('strong', {}, 'Mapped: '));
+      mapping.mapped.forEach(m => {
+        row.appendChild(U.el('span', { class: 'mapped-chip' },
+          m.raw === m.canonical ? m.canonical : (m.raw + ' → ' + m.canonical)));
+      });
+      mappingBox.appendChild(row);
+    }
+    if (mapping.unmapped.length) {
+      const row = U.el('div', { style: 'margin-top:6px;' });
+      row.appendChild(U.el('strong', {}, 'Ignored columns: '));
+      mapping.unmapped.forEach(h => row.appendChild(U.el('span', { class: 'unmapped-chip' }, h)));
+      mappingBox.appendChild(row);
+    }
+    if (mapping.missingCanonical.length) {
+      const optional = kind === 'students'
+        ? new Set(['middleName', 'notes'])
+        : new Set(['description']);
+      const missingRequired = mapping.missingCanonical.filter(c => !optional.has(c));
+      if (missingRequired.length) {
+        const row = U.el('div', { style: 'margin-top:6px;' });
+        row.appendChild(U.el('strong', {}, 'Missing required: '));
+        missingRequired.forEach(c => row.appendChild(U.el('span', { class: 'missing-chip' }, c)));
+        mappingBox.appendChild(row);
+      }
+    }
+    previewHost.appendChild(mappingBox);
+
+    const summary = U.el('div', { class: 'summary' }, [
+      U.el('span', { class: 'ok' }, `${validCount} valid`),
+      invalidCount ? U.el('span', { class: 'err' }, `${invalidCount} invalid`) : null,
+      U.el('span', {}, `${results.length} total rows`)
+    ].filter(Boolean));
+    previewHost.appendChild(summary);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    const cols = kind === 'students'
+      ? ['First', 'Last', 'Grade', 'Birth date', 'Guardian', 'Status']
+      : ['Name', 'Grade', 'Status'];
+    cols.forEach(c => headRow.appendChild(U.el('th', {}, c)));
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    results.forEach(r => {
+      const tr = document.createElement('tr');
+      if (!r.valid) tr.className = 'invalid';
+      if (kind === 'students') {
+        const n = r.normalized || {};
+        const a = r.aliased || {};
+        tr.appendChild(U.el('td', {}, n.firstName    || a.firstName    || '—'));
+        tr.appendChild(U.el('td', {}, n.lastName     || a.lastName     || '—'));
+        tr.appendChild(U.el('td', {}, n.gradeLevel   || (a.gradeLevel != null ? String(a.gradeLevel) : '—')));
+        tr.appendChild(U.el('td', {}, n.birthDate    || (a.birthDate  != null ? String(a.birthDate)  : '—')));
+        tr.appendChild(U.el('td', {}, n.guardianName || a.guardianName || '—'));
+        tr.appendChild(U.el('td', {}, r.valid ? '✓' : (r.error || 'invalid')));
+      } else {
+        const n = r.normalized || {};
+        const a = r.aliased || {};
+        tr.appendChild(U.el('td', {}, n.name       || a.name       || '—'));
+        tr.appendChild(U.el('td', {}, n.gradeLevel || (a.gradeLevel != null ? String(a.gradeLevel) : '—')));
+        tr.appendChild(U.el('td', {}, r.valid ? '✓' : (r.error || 'invalid')));
+      }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    previewHost.appendChild(table);
+
+    commitBtn.disabled = validCount === 0;
+  }
+
+  function commitImport(kind) {
+    const cached = importCache[kind];
+    if (!cached) return U.toast('Preview first', 'error');
+    const valid = cached.results.filter(r => r.valid);
+    if (!valid.length) return U.toast('No valid rows to import', 'error');
+
+    let createdCount = 0;
+    let skipped = 0;
+
+    if (kind === 'students') {
+      valid.forEach(r => {
+        addStudent(r.normalized);
+        createdCount++;
+      });
+    } else if (kind === 'subjects') {
+      const existing = Subjects.getAll();
+      valid.forEach(r => {
+        const dup = existing.find(s =>
+          s.name.toLowerCase() === r.normalized.name.toLowerCase() &&
+          s.gradeLevel === r.normalized.gradeLevel
+        );
+        if (dup) { skipped++; return; }
+        Subjects.create({
+          id: U.generateId('sub'),
+          ...r.normalized,
+          createdAt: new Date().toISOString()
+        });
+        createdCount++;
+      });
+    }
+
+    logActivity('registrar', `import.${kind}`, `${createdCount} created${skipped ? ', ' + skipped + ' duplicates skipped' : ''}`);
+    const msg = skipped
+      ? `Imported ${createdCount} ${kind} (${skipped} duplicates skipped)`
+      : `Imported ${createdCount} ${kind}`;
+    U.toast(msg, 'success');
+
+    // Clear inputs + preview
+    $('#ta-' + kind).value = '';
+    importFiles[kind] = null;
+    updateFileName(kind);
+    $('#preview-' + kind).style.display = 'none';
+    document.querySelector(`[data-import-commit="${kind}"]`).disabled = true;
+    importCache[kind] = null;
+
+    if (kind === 'students') renderDashboard();
+    if (kind === 'subjects') renderSubjectsList();
+  }
+
+  function clearImport(kind) {
+    $('#ta-' + kind).value = '';
+    importFiles[kind] = null;
+    updateFileName(kind);
+    const fileInput = document.querySelector(`[data-import-file="${kind}"]`);
+    if (fileInput) fileInput.value = '';
+    $('#preview-' + kind).style.display = 'none';
+    document.querySelector(`[data-import-commit="${kind}"]`).disabled = true;
+    importCache[kind] = null;
+  }
+
+  function updateFileName(kind) {
+    const el = document.querySelector(`[data-file-name="${kind}"]`);
+    if (!el) return;
+    const file = importFiles[kind];
+    if (file) {
+      el.textContent = file.name + ' (' + Math.max(1, Math.round(file.size / 1024)) + ' KB)';
+      el.style.fontStyle = 'normal';
+      el.style.color = 'var(--success)';
+    } else {
+      el.textContent = 'no file selected';
+      el.style.fontStyle = 'italic';
+      el.style.color = 'var(--ink-500)';
+    }
+  }
+
+  async function handleFilePicked(kind, file) {
+    importFiles[kind] = file || null;
+    updateFileName(kind);
+    if (!file) return;
+    // Auto-preview as soon as a file is chosen — this is the "without
+    // manual intervention" piece of the brief. The user picks the file,
+    // sees the preview, clicks Import. Three clicks total.
+    try {
+      await previewImport(kind);
+    } catch (_) {
+      // previewImport already surfaced its own error toast.
+    }
+  }
+
+  function initBulkImport() {
+    // Reflect XLSX-lib availability into the UI so users on a blocked CDN
+    // know why their Excel upload didn't work before they try it.
+    const xlsxOk = window.HLC_IMPORT && window.HLC_IMPORT.hasXLSXLib();
+    if (!xlsxOk) {
+      document.querySelectorAll('[data-import-lib-warning]').forEach(el => {
+        el.style.display = '';
+      });
+      document.querySelectorAll('[data-file-pick]').forEach(el => {
+        // We don't disable the picker — CSVs still work — but we narrow
+        // the accept= filter so the OS dialog hides the .xlsx option.
+        const input = el.querySelector('input[type="file"]');
+        if (input) input.setAttribute('accept', '.csv,.tsv,.txt');
+        const label = el.querySelector('span');
+        if (label) label.textContent = '📂 Choose CSV/TSV file';
+      });
+    }
+
+    document.querySelectorAll('[data-import-preview]').forEach(btn => {
+      btn.addEventListener('click', () => previewImport(btn.dataset.importPreview));
+    });
+    document.querySelectorAll('[data-import-commit]').forEach(btn => {
+      btn.addEventListener('click', () => commitImport(btn.dataset.importCommit));
+    });
+    document.querySelectorAll('[data-import-clear]').forEach(btn => {
+      btn.addEventListener('click', () => clearImport(btn.dataset.importClear));
+    });
+    document.querySelectorAll('[data-import-file]').forEach(input => {
+      input.addEventListener('change', e => {
+        const f = e.target.files && e.target.files[0];
+        handleFilePicked(input.dataset.importFile, f);
+      });
+    });
+    document.querySelectorAll('[data-import-template]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const kind = btn.dataset.importTemplate;
+        const tpl = IMPORT_TEMPLATES[kind];
+        if (!tpl) return;
+        const filename = (kind === 'students' ? 'students-template' : 'subjects-template') + '.xlsx';
+        window.HLC_IMPORT.downloadTemplate(filename, tpl.headers, tpl.samples);
+      });
+    });
+  }
+
+  // ----------- Boot -----------
+  // ---------- Change Grade modal ----------
+  // Two flows: 'correction' (typo fix, no fee changes) and 'promotion'
+  // (move to new grade, optionally new SY, auto-apply fees for new context).
+  // Backed by HLC_STORAGE.changeStudentGrade — see storage.js for semantics.
+  let pendingGradeChangeStudentId = null;
+
+  function openGradeChangeModal(studentId) {
+    const s = Students.getById(studentId);
+    if (!s) return;
+    pendingGradeChangeStudentId = studentId;
+    $('#gc-name').textContent = `Change Grade — ${fullName(s)}`;
+
+    const sel = $('#gc-grade');
+    U.clearNode(sel);
+    CFG.GRADE_LEVELS.forEach(g => {
+      const opt = U.el('option', { value: g }, g);
+      if (g === s.gradeLevel) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    // Reset radios + SY field
+    $$('input[name="gc-reason"]').forEach(r => { r.checked = (r.value === 'correction'); });
+    $('#gc-sy-field').style.display = 'none';
+    $('#gc-school-year').value = '';
+
+    $('#grade-change-modal').classList.add('open');
+  }
+
+  function closeGradeChangeModal() {
+    $('#grade-change-modal').classList.remove('open');
+    pendingGradeChangeStudentId = null;
+  }
+
+  function initGradeChangeModal() {
+    $$('[data-close-grade]').forEach(b => b.addEventListener('click', closeGradeChangeModal));
+    $('#grade-change-modal').addEventListener('click', e => {
+      if (e.target.id === 'grade-change-modal') closeGradeChangeModal();
+    });
+    // Toggle SY field visibility based on reason
+    $$('input[name="gc-reason"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isPromotion = $('input[name="gc-reason"]:checked').value === 'promotion';
+        $('#gc-sy-field').style.display = isPromotion ? '' : 'none';
+      });
+    });
+    $('#gc-submit').addEventListener('click', () => {
+      if (!pendingGradeChangeStudentId) return;
+      const newGrade = $('#gc-grade').value;
+      const reason = $('input[name="gc-reason"]:checked').value;
+      const newSY = $('#gc-school-year').value.trim();
+      if (!newGrade) return U.toast('Pick a grade', 'error');
+      if (reason === 'promotion' && newSY && !/^\d{4}-\d{4}$/.test(newSY)) {
+        return U.toast('School year format: YYYY-YYYY', 'error');
+      }
+
+      const before = Students.getById(pendingGradeChangeStudentId);
+      const result = window.HLC_STORAGE.changeStudentGrade(pendingGradeChangeStudentId, newGrade, {
+        reason,
+        newSchoolYear: reason === 'promotion' && newSY ? newSY : null
+      });
+      if (!result) return U.toast('Could not change grade', 'error');
+
+      const detailParts = [
+        `${fullName(before)}`,
+        `${before.gradeLevel} → ${newGrade}`,
+        reason
+      ];
+      if (reason === 'promotion' && newSY) detailParts.push(`SY ${newSY}`);
+      if (reason === 'promotion') {
+        if (result.archivedCount)  detailParts.push(`${result.archivedCount} archived`);
+        if (result.carryOverCount) detailParts.push(`${result.carryOverCount} carry-over (₱${(result.carryOverAmount || 0).toFixed(2)})`);
+      }
+      if (result.appliedFees.length) detailParts.push(`${result.appliedFees.length} fee(s) auto-applied`);
+      logActivity('registrar', 'student.gradeChange', detailParts.join(' · '));
+
+      let toastMsg;
+      if (reason === 'promotion') {
+        const bits = [`Promoted ${fullName(before)} to ${newGrade}`];
+        if (result.archivedCount)   bits.push(`${result.archivedCount} item(s) archived`);
+        if (result.carryOverCount)  bits.push(`${result.carryOverCount} carry-over`);
+        if (result.appliedFees.length) bits.push(`${result.appliedFees.length} new fee(s) applied`);
+        toastMsg = bits.join(' · ');
+      } else {
+        toastMsg = `Corrected grade to ${newGrade}`;
+      }
+      U.toast(toastMsg, 'success');
+      closeGradeChangeModal();
+      renderStudentTable($('#students-search').value);
+      renderDashboard();
+      // Refresh the GSA view if it's currently visible.
+      if ($('#view-gsa').classList.contains('active')) {
+        renderGSA($('#gsa-search').value);
+      }
+    });
+  }
+
+  function init() {
+    $('#page-meta').textContent = U.formatDateTime(new Date().toISOString());
+
+    $$('.nav-list button').forEach(btn => {
+      btn.addEventListener('click', () => setActiveView(btn.dataset.view));
+    });
+
+    $$('[data-close-modal]').forEach(b => b.addEventListener('click', closeModal));
+    $('#student-modal').addEventListener('click', e => { if (e.target.id === 'student-modal') closeModal(); });
+
+    $$('[data-close-assign]').forEach(b => b.addEventListener('click', closeAssignModal));
+    $('#assign-modal').addEventListener('click', e => { if (e.target.id === 'assign-modal') closeAssignModal(); });
+
+    $('#students-search').addEventListener('input', e => renderStudentTable(e.target.value));
+    $('#subj-search').addEventListener('input', e => renderSubjectsList(e.target.value));
+
+    // Student GSA listeners
+    $('#gsa-search').addEventListener('input', e => renderGSA(e.target.value));
+    $('#gsa-expand-all').addEventListener('click', () => {
+      $$('#gsa-grid details.gsa-collapsible').forEach(d => { d.open = true; });
+    });
+    $('#gsa-collapse-all').addEventListener('click', () => {
+      $$('#gsa-grid details.gsa-collapsible').forEach(d => { d.open = false; });
+    });
+
+    initEnrollForm();
+    initSubjectForm();
+    initBulkImport();
+    initGradeChangeModal();
+    renderDashboard();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();

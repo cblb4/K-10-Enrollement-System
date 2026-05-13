@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In · Heartworks Learning Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/shared.css" />
+</head>
+<body>
+  <div class="auth-shell">
+    <div class="auth-card">
+      <!-- Centered logo placeholder, 50% opacity, single source of truth in shared/logo.js -->
+      <div id="auth-logo" class="auth-logo"></div>
+
+      <h1 class="auth-title">Heartworks Learning Center</h1>
+      <div class="auth-sub">Student Enrollment System</div>
+
+      <div class="auth-tabs">
+        <button id="tab-signin" class="active">Sign In</button>
+        <button id="tab-signup">Sign Up</button>
+      </div>
+
+      <div id="auth-error" class="auth-error"></div>
+
+      <!-- ========== SIGN IN ========== -->
+      <form id="form-signin" class="auth-form">
+        <div class="field">
+          <label for="signin-email">Email</label>
+          <input type="email" id="signin-email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="signin-password">Password</label>
+          <input type="password" id="signin-password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary auth-submit">Sign In</button>
+      </form>
+
+      <!-- ========== SIGN UP ========== -->
+      <form id="form-signup" class="auth-form" style="display: none;">
+        <div class="field">
+          <label for="signup-name">Full Name</label>
+          <input type="text" id="signup-name" required autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="signup-password">Password</label>
+          <input type="password" id="signup-password" required minlength="6" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label>Select Your Role</label>
+          <div class="auth-role-grid" id="role-grid">
+            <!-- populated dynamically from CFG.ROLES -->
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary auth-submit">Create Account</button>
+      </form>
+
+      <div class="auth-footer">© Heartworks Learning Center · K–10 Enrollment</div>
+    </div>
+  </div>
+
+  <script src="shared/config.js"></script>
+  <script src="shared/utils.js"></script>
+  <script src="shared/api.js"></script>
+  <script src="shared/storage.js"></script>
+  <script src="shared/auth.js"></script>
+  <script src="shared/logo.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

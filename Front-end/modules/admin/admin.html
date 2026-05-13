@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Admin · Heartworks LC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/shared.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div id="sidebar-logo" class="sidebar-logo"></div>
+      <div class="brand">
+        <span class="mark">Heartworks</span>
+        <span class="sub">Learning Center</span>
+      </div>
+      <span class="role-tag">Business Admin</span>
+      <nav>
+        <ul class="nav-list">
+          <li><button data-view="dashboard" class="active">Overview</button></li>
+          <li><button data-view="sections">Sections</button></li>
+          <li><button data-view="assign">Assign Students</button></li>
+          <li><button data-view="faculty">Faculty Management</button></li>
+          <li><button data-view="import">Bulk Import</button></li>
+          <li><button data-view="activity">Activity Log</button></li>
+        </ul>
+      </nav>
+      <div class="footer-note">
+        <div id="user-strip"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div class="title-block">
+          <div class="eyebrow" id="page-eyebrow">Operations</div>
+          <h1 id="page-title">Overview</h1>
+        </div>
+        <div class="meta" id="page-meta"></div>
+      </div>
+
+      <!-- ========== OVERVIEW ========== -->
+      <section class="view active" id="view-dashboard">
+        <div class="stat-grid" id="admin-stats"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Enrollment by Grade Level</h3>
+            <span class="hint">Live distribution of all students</span>
+          </div>
+          <div class="bar-chart" id="grade-distribution"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Section Capacity Status</h3>
+            <span class="hint">Sections with assigned students</span>
+          </div>
+          <div id="section-summary"></div>
+        </div>
+      </section>
+
+      <!-- ========== SECTIONS ========== -->
+      <section class="view" id="view-sections">
+        <div class="card" id="section-form-card">
+          <div class="card-header">
+            <h3 id="section-form-title">Create a Section</h3>
+            <span class="hint" id="section-form-hint">Sections organize enrolled students by grade</span>
+          </div>
+          <form id="section-form">
+            <input type="hidden" id="sec-edit-id" value="" />
+            <div class="form-grid">
+              <div class="field">
+                <label for="sec-name">Section Name</label>
+                <input type="text" id="sec-name" placeholder="e.g. Sampaguita" required />
+              </div>
+              <div class="field">
+                <label for="sec-grade">Grade Level</label>
+                <select id="sec-grade" required>
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sec-adviser">Adviser</label>
+                <input type="text" id="sec-adviser" placeholder="Adviser name" required />
+              </div>
+              <div class="field">
+                <label for="sec-capacity">Capacity</label>
+                <input type="number" id="sec-capacity" min="1" max="60" placeholder="e.g. 35" required />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="sec-cancel-edit" style="display:none;">Cancel edit</button>
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-primary" id="sec-submit">Create Section</button>
+            </div>
+          </form>
+        </div>
+
+        <h2 class="section-title">All Sections</h2>
+        <div id="sections-list"></div>
+      </section>
+
+      <!-- ========== ASSIGN STUDENTS ========== -->
+      <section class="view" id="view-assign">
+        <div class="card">
+          <div class="card-header">
+            <h3>Assign a Student to a Section</h3>
+            <span class="hint">Approved students can be assigned to a section</span>
+          </div>
+          <form id="assign-form">
+            <div class="form-grid">
+              <div class="field full">
+                <label for="asg-student">Student</label>
+                <select id="asg-student" required>
+                  <option value="">— Select an approved student —</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="asg-section">Section</label>
+                <select id="asg-section" required>
+                  <option value="">— Select a section —</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-accent">Assign & Enroll</button>
+            </div>
+          </form>
+        </div>
+
+        <h2 class="section-title">Currently Assigned</h2>
+        <div class="tbl-wrap">
+          <table class="tbl" id="assigned-tbl">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Grade</th>
+                <th>Section</th>
+                <th>Status</th>
+                <th class="actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ========== FACULTY MANAGEMENT ========== -->
+      <section class="view" id="view-faculty">
+        <div class="card" id="faculty-form-card">
+          <div class="card-header">
+            <h3 id="faculty-form-title">Add Faculty Member</h3>
+            <span class="hint" id="faculty-form-hint">Photos are stored locally as embedded data; replace with cloud uploads when migrating</span>
+          </div>
+
+          <form id="faculty-form">
+            <input type="hidden" id="fac-edit-id" value="" />
+            <div class="photo-upload-row" style="margin-bottom:18px;">
+              <div id="photo-preview" class="photo-preview">No photo</div>
+              <div>
+                <label for="fac-photo" class="btn btn-ghost btn-sm" style="display:inline-block; cursor:pointer;">Choose Photo</label>
+                <input type="file" id="fac-photo" accept="image/*" style="display:none;" />
+                <div style="font-size:0.78rem; color:var(--ink-500); margin-top:6px;">JPG or PNG · max 2 MB</div>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="fac-firstName">First Name</label>
+                <input type="text" id="fac-firstName" required />
+              </div>
+              <div class="field">
+                <label for="fac-lastName">Last Name</label>
+                <input type="text" id="fac-lastName" required />
+              </div>
+              <div class="field">
+                <label for="fac-position">Position / Title</label>
+                <input type="text" id="fac-position" placeholder="e.g. Mathematics Teacher" required />
+              </div>
+              <div class="field">
+                <label for="fac-department">Department</label>
+                <input type="text" id="fac-department" placeholder="e.g. Sciences" required />
+              </div>
+              <div class="field">
+                <label for="fac-email">Email</label>
+                <input type="email" id="fac-email" required />
+              </div>
+              <div class="field">
+                <label for="fac-contact">Contact</label>
+                <input type="tel" id="fac-contact" required />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="fac-cancel-edit" style="display:none;">Cancel edit</button>
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-primary" id="fac-submit">Save Faculty</button>
+            </div>
+          </form>
+        </div>
+
+        <h2 class="section-title">Faculty Directory</h2>
+        <div class="search-bar">
+          <input type="text" id="fac-search" placeholder="Filter by name, position, or department…" />
+        </div>
+        <div id="faculty-list" class="faculty-grid"></div>
+      </section>
+
+      <!-- ========== BULK IMPORT ========== -->
+      <section class="view" id="view-import">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <h3>Bulk Import</h3>
+            <span class="hint">Paste rows from a spreadsheet to create many faculty members at once</span>
+          </div>
+          <p style="color:var(--ink-700); font-size:0.9rem; margin:0;">
+            Copy rows from Excel / Google Sheets (with headers in the first row) and paste below.
+            Photos are skipped in bulk — add them individually after import.
+          </p>
+        </div>
+
+        <div class="import-box" id="import-faculty">
+          <h4>Faculty</h4>
+          <div class="help">
+            Required columns: <code>firstName</code>, <code>lastName</code>, <code>position</code>, <code>department</code>, <code>email</code>, <code>contact</code>.
+            Headers are matched loosely — &ldquo;First Name&rdquo;, &ldquo;Email Address&rdquo;, &ldquo;Phone&rdquo; etc. all work.
+          </div>
+
+          <div class="import-source-row">
+            <label class="file-pick" data-file-pick="faculty">
+              <span>📂 Choose Excel/CSV file</span>
+              <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" data-import-file="faculty" />
+            </label>
+            <span class="file-name" data-file-name="faculty">no file selected</span>
+            <span class="or">or paste below</span>
+            <button type="button" class="template-link" data-import-template="faculty">↓ Download .xlsx template</button>
+          </div>
+          <div class="import-lib-warning" data-import-lib-warning="faculty" style="display:none;">
+            Excel parser unavailable (likely offline) — only CSV/TSV uploads and pasted data will work.
+          </div>
+
+          <textarea class="import-textarea" id="ta-faculty" placeholder="firstName	lastName	position	department	email	contact
+Maria	Santos	Mathematics Teacher	Mathematics	maria.santos@hlc.edu	09171234567
+Juan	Reyes	English Teacher	English	juan.reyes@hlc.edu	09180000000"></textarea>
+          <div class="import-actions">
+            <button type="button" class="btn btn-ghost btn-sm" data-import-preview="faculty">Preview</button>
+            <button type="button" class="btn btn-primary btn-sm" data-import-commit="faculty" disabled>Import</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-import-clear="faculty">Clear</button>
+          </div>
+          <div class="import-preview" id="preview-faculty" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ========== ACTIVITY LOG ========== -->
+      <section class="view" id="view-activity">
+        <div class="card">
+          <div class="card-header">
+            <h3>System Activity</h3>
+            <span class="hint" id="activity-count-hint">Audit trail across all roles</span>
+          </div>
+          <div class="activity-filters">
+            <div class="activity-filter-group">
+              <label for="activity-search">Search</label>
+              <input type="text" id="activity-search" placeholder="Search action or details…" />
+            </div>
+            <div class="activity-filter-group">
+              <label for="activity-role">Role</label>
+              <select id="activity-role">
+                <option value="">All roles</option>
+                <option value="registrar">Registrar</option>
+                <option value="cashier">Cashier</option>
+                <option value="admin">Admin</option>
+                <option value="principal">Principal</option>
+              </select>
+            </div>
+            <div class="activity-filter-group">
+              <label for="activity-action">Action</label>
+              <select id="activity-action">
+                <option value="">All actions</option>
+              </select>
+            </div>
+            <div class="activity-filter-group">
+              <label for="activity-from">From</label>
+              <input type="date" id="activity-from" />
+            </div>
+            <div class="activity-filter-group">
+              <label for="activity-to">To</label>
+              <input type="date" id="activity-to" />
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="activity-clear">Clear filters</button>
+          </div>
+          <div id="activity-list"></div>
+          <div class="activity-pagination">
+            <button type="button" class="btn btn-ghost btn-sm" id="activity-prev" disabled>← Newer</button>
+            <span id="activity-page-info" style="font-size:0.85rem;color:var(--ink-500);">Page 1</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="activity-next" disabled>Older →</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../shared/config.js"></script>
+  <script src="../../shared/utils.js"></script>
+  <script src="../../shared/api.js"></script>
+  <script src="../../shared/storage.js"></script>
+  <script src="../../shared/auth.js"></script>
+  <script src="../../shared/logo.js"></script>
+
+  <script src="../../shared/csv.js"></script>
+  <!--
+    SheetJS — community edition, MIT-licensed. Loaded from CDN so the
+    project keeps its no-install footprint. If the CDN is blocked the
+    bulk-import file picker degrades to CSV-only with a visible notice;
+    the rest of the page is unaffected.
+    For production: pin a specific version + SRI hash (see SheetJS docs).
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+  <script src="../../shared/import-helpers.js"></script>
+  <script>
+    HLC_STORAGE.bootstrap()
+      .then(() => {
+        const s = document.createElement('script');
+        s.src = 'admin.js';
+        s.onload = () => document.dispatchEvent(new Event('DOMContentLoaded'));
+        document.body.appendChild(s);
+      })
+      .catch(err => {
+        document.body.innerHTML =
+          '<div style="padding:40px;text-align:center;font-family:Inter,sans-serif;">' +
+            '<h1 style="color:#8a1a1a;">Couldn&rsquo;t load data</h1>' +
+            '<p>' + (err && err.message ? err.message : 'Unknown error') + '</p>' +
+            '<p><a href="../../auth.html">Sign in again</a></p>' +
+          '</div>';
+      });
+  </script>
+</body>
+</html>

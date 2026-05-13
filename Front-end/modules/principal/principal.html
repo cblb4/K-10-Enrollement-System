@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Principal · Heartworks LC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/shared.css" />
+  <link rel="stylesheet" href="principal.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div id="sidebar-logo" class="sidebar-logo"></div>
+      <div class="brand">
+        <span class="mark">Heartworks</span>
+        <span class="sub">Learning Center</span>
+      </div>
+      <span class="role-tag">Principal</span>
+      <nav>
+        <ul class="nav-list">
+          <li><button data-view="data" class="active">Data</button></li>
+          <li><button data-view="information">Information</button></li>
+          <li><button data-view="knowledge">Knowledge</button></li>
+          <li><button data-view="wisdom">Wisdom</button></li>
+        </ul>
+      </nav>
+      <div class="footer-note dikw-note">
+        <div class="dikw-label">DIKW Framework</div>
+        <div class="dikw-text">Data → Information (descriptive) → Knowledge (diagnostic &amp; predictive) → Wisdom (prescriptive).</div>
+      </div>
+      <div class="footer-note">
+        <div id="user-strip"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div class="title-block">
+          <div class="eyebrow" id="page-eyebrow">Leadership</div>
+          <h1 id="page-title">Data</h1>
+        </div>
+        <div class="meta" id="page-meta"></div>
+      </div>
+
+      <!-- ========== DATA — raw entries ========== -->
+      <section class="view active" id="view-data">
+        <div class="dikw-banner">
+          <span class="layer-badge">D · Data</span>
+          <h2>Raw Records</h2>
+          <p>The unprocessed inputs of the enrollment system — every student, every charge, every payment as it was recorded.</p>
+        </div>
+
+        <div class="stat-grid" id="data-stats"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>All Student Entries</h3>
+            <span class="hint" id="data-students-count"></span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="data-students-tbl">
+              <thead>
+                <tr><th>Name</th><th>Grade</th><th>Status</th><th>Created</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Charge Log</h3>
+            <span class="hint" id="data-charges-count"></span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="data-charges-tbl">
+              <thead>
+                <tr><th>Student</th><th>Title</th><th class="numeric">Amount</th><th>Status</th><th>Date</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Payment Log</h3>
+            <span class="hint" id="data-payments-count"></span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="data-payments-tbl">
+              <thead>
+                <tr><th>Student</th><th>Method</th><th class="numeric">Amount</th><th>Date</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== INFORMATION — aggregated ========== -->
+      <section class="view" id="view-information">
+        <div class="dikw-banner">
+          <span class="layer-badge">I · Information</span>
+          <h2>Aggregated Metrics</h2>
+          <p>Raw data structured into meaningful summaries — counts per grade, financial totals, payment progress.</p>
+        </div>
+
+        <div class="stat-grid" id="info-stats"></div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <h3>Students per Grade Level</h3>
+              <span class="hint">Distribution</span>
+            </div>
+            <div class="bar-chart" id="info-grade-chart"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Charges vs Payments</h3>
+              <span class="hint">Per grade level</span>
+            </div>
+            <div class="bar-chart" id="info-finance-chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== KNOWLEDGE — diagnostic + predictive ========== -->
+      <section class="view" id="view-knowledge">
+        <div class="dikw-banner">
+          <span class="layer-badge">K · Knowledge</span>
+          <h2>Patterns &amp; Predictions</h2>
+          <p>What the information reveals when interrogated — the <em>why</em> behind the numbers (diagnostic), and where the data is heading (predictive).</p>
+        </div>
+
+        <!-- ----- Diagnostic sub-section ----- -->
+        <div class="dikw-sub">
+          <span class="dikw-sub-badge">Diagnostic</span>
+          <div class="dikw-sub-text">
+            <h3>Why behind the what</h3>
+            <p>Where outstanding balances live, who's at risk, where collections are strong or weak.</p>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <h3>Payment Risk Segmentation</h3>
+              <span class="hint">Per-student aged-debt buckets</span>
+            </div>
+            <div id="knowledge-risk"></div>
+            <details class="methodology">
+              <summary>How is this computed?</summary>
+              <p id="knowledge-risk-note"></p>
+            </details>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Outstanding Charges by Type</h3>
+              <span class="hint">Where unpaid amounts come from</span>
+            </div>
+            <div id="knowledge-diagnostic"></div>
+            <details class="methodology">
+              <summary>How is this computed?</summary>
+              <p id="knowledge-diagnostic-note"></p>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Grade-Level Collection Rate</h3>
+            <span class="hint">Percentage of charges collected per grade</span>
+          </div>
+          <div class="bar-chart" id="knowledge-rate"></div>
+        </div>
+
+        <!-- ----- Predictive sub-section ----- -->
+        <div class="dikw-sub">
+          <span class="dikw-sub-badge predictive">Predictive</span>
+          <div class="dikw-sub-text">
+            <h3>What's likely next</h3>
+            <p>Projections derived from historical patterns. Methods and assumptions are disclosed on each card.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Enrollment Forecast — Next School Year</h3>
+            <span class="hint" id="knowledge-forecast-context"></span>
+          </div>
+          <div class="forecast-chart" id="knowledge-forecast"></div>
+          <details class="methodology">
+            <summary>How is this projection computed?</summary>
+            <p id="knowledge-forecast-note"></p>
+          </details>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Recurring Charge Patterns</h3>
+            <span class="hint">Fees most likely to recur next term</span>
+          </div>
+          <div id="knowledge-charges"></div>
+        </div>
+      </section>
+
+      <!-- ========== WISDOM — recommendations ========== -->
+      <section class="view" id="view-wisdom">
+        <div class="dikw-banner">
+          <span class="layer-badge">W · Wisdom</span>
+          <h2>Strategic Recommendations</h2>
+          <p>Knowledge translated into action — what to do next based on what the system has observed.</p>
+        </div>
+
+        <h2 class="section-title">Suggested Actions</h2>
+        <div class="insight-grid" id="wisdom-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../shared/config.js"></script>
+  <script src="../../shared/utils.js"></script>
+  <script src="../../shared/api.js"></script>
+  <script src="../../shared/storage.js"></script>
+  <script src="../../shared/auth.js"></script>
+  <script src="../../shared/logo.js"></script>
+
+  <script>
+    HLC_STORAGE.bootstrap()
+      .then(() => {
+        const s = document.createElement('script');
+        s.src = 'principal.js';
+        s.onload = () => document.dispatchEvent(new Event('DOMContentLoaded'));
+        document.body.appendChild(s);
+      })
+      .catch(err => {
+        document.body.innerHTML =
+          '<div style="padding:40px;text-align:center;font-family:Inter,sans-serif;">' +
+            '<h1 style="color:#8a1a1a;">Couldn&rsquo;t load data</h1>' +
+            '<p>' + (err && err.message ? err.message : 'Unknown error') + '</p>' +
+            '<p><a href="../../auth.html">Sign in again</a></p>' +
+          '</div>';
+      });
+  </script>
+</body>
+</html>

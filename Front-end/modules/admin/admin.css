@@ -1,0 +1,110 @@
+.section-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  border-left: 3px solid var(--gold-500);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+.section-card .info .name {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+}
+.section-card .info .meta {
+  font-size: 0.82rem;
+  color: var(--ink-500);
+  margin-top: 4px;
+}
+.section-card .capacity {
+  text-align: right;
+}
+.section-card .capacity .frac {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--maroon-800);
+  font-weight: 600;
+}
+.section-card .capacity .lbl {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+.section-card .capacity .bar {
+  height: 6px;
+  background: var(--paper-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+  width: 140px;
+}
+.section-card .capacity .bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--maroon-700), var(--gold-500));
+  transition: width .5s var(--ease);
+}
+
+#section-summary .summary-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+#section-summary .summary-row:last-child { border-bottom: none; }
+#section-summary .summary-row .left {
+  display: flex;
+  flex-direction: column;
+}
+#section-summary .summary-row .left .name { font-weight: 500; color: var(--ink-900); }
+#section-summary .summary-row .left .grade { font-size: 0.78rem; color: var(--ink-500); }
+#section-summary .summary-row .right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-700);
+}
+
+#activity-list .log-row {
+  display: grid;
+  grid-template-columns: 110px 100px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+#activity-list .log-row:last-child { border-bottom: none; }
+#activity-list .log-row .role-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  text-align: center;
+}
+#activity-list .log-row .role-registrar { background: var(--maroon-50); color: var(--maroon-800); }
+#activity-list .log-row .role-cashier   { background: var(--gold-100); color: var(--gold-700); }
+#activity-list .log-row .role-admin     { background: #e8f0fc; color: #1d4683; }
+#activity-list .log-row .role-principal { background: #f0e8fc; color: #5a2a83; }
+#activity-list .log-row .action {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+#activity-list .log-row .details { color: var(--ink-900); }
+#activity-list .log-row .when {
+  font-size: 0.78rem;
+  color: var(--ink-300);
+  font-variant-numeric: tabular-nums;
+}

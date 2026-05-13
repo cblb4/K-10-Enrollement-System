@@ -1,0 +1,2342 @@
+/* =============================================================
+   Heartworks Learning Center — Shared Design System
+   Maroon × Gold · Editorial · Restrained
+   ============================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Brand */
+  --maroon-900: #3d0d11;
+  --maroon-800: #5a1a1a;
+  --maroon-700: #6b1f23;
+  --maroon-600: #7d2629;
+  --maroon-500: #8e2d31;
+  --maroon-100: #f7ebec;
+  --maroon-50:  #fbf5f5;
+
+  --gold-700: #a8842a;
+  --gold-600: #c9a03a;
+  --gold-500: #d4af37;
+  --gold-400: #e0c25a;
+  --gold-100: #f8f0d4;
+
+  /* Neutrals — warm paper tone */
+  --paper:        #faf7f2;
+  --paper-2:      #f3eee5;
+  --ink-900:      #1a1614;
+  --ink-700:      #3d342f;
+  --ink-500:      #6b5e54;
+  --ink-300:      #a89a8d;
+  --line:         #e5dccd;
+  --line-strong:  #c9bca8;
+
+  /* Semantic */
+  --success:    #0f5132;
+  --success-bg: #d1e7dd;
+  --warning:    #8a5a00;
+  --warning-bg: #fff3cd;
+  --danger:     #842029;
+  --danger-bg:  #f8d7da;
+
+  /* Type */
+  --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-body:    'Inter', -apple-system, sans-serif;
+
+  /* Motion */
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink-900);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--maroon-900);
+  margin: 0;
+}
+
+h1 { font-size: 2.5rem; line-height: 1.1; }
+h2 { font-size: 1.75rem; line-height: 1.2; }
+h3 { font-size: 1.25rem; line-height: 1.3; }
+
+a { color: var(--maroon-700); text-decoration: none; }
+a:hover { color: var(--gold-700); }
+
+/* ---------- Layout shell ---------- */
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+}
+
+.sidebar {
+  background: var(--maroon-900);
+  color: var(--paper);
+  padding: 28px 22px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-right: 3px solid var(--gold-500);
+}
+
+.sidebar .brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+  margin-bottom: 24px;
+}
+.sidebar .brand .mark {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold-400);
+  letter-spacing: 0.02em;
+}
+.sidebar .brand .sub {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+}
+
+.sidebar .role-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 1px solid var(--gold-500);
+  color: var(--gold-400);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  width: fit-content;
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-list button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.78);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all .18s var(--ease);
+  border-left: 2px solid transparent;
+}
+.nav-list button:hover { background: rgba(255,255,255,0.05); color: #fff; }
+.nav-list button.active {
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--gold-400);
+  border-left-color: var(--gold-500);
+}
+
+.sidebar .footer-note {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(212, 175, 55, 0.2);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.04em;
+}
+
+.main {
+  padding: 40px 56px;
+  max-width: 1400px;
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 18px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.page-header .title-block .eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-700);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.page-header .title-block h1 { font-size: 2.2rem; }
+.page-header .meta { font-size: 0.85rem; color: var(--ink-500); }
+
+/* ---------- View switching ---------- */
+.view { display: none; animation: fadeIn .25s var(--ease); }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Cards ---------- */
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 24px;
+  box-shadow: 0 1px 0 rgba(61,13,17,0.02);
+}
+.card + .card { margin-top: 20px; }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.card-header h3 { font-size: 1.15rem; }
+.card-header .hint { font-size: 0.8rem; color: var(--ink-500); }
+
+/* ---------- Stat tiles ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--maroon-700);
+  padding: 18px 20px;
+  border-radius: 3px;
+}
+.stat.gold { border-left-color: var(--gold-600); }
+.stat .label {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.stat .value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  line-height: 1;
+}
+.stat .delta { font-size: 0.78rem; color: var(--ink-500); margin-top: 6px; }
+
+/* ---------- Forms ---------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1 / -1; }
+.field label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  font-weight: 600;
+}
+.field input, .field select, .field textarea {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  border-radius: 3px;
+  color: var(--ink-900);
+  transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none;
+  border-color: var(--maroon-700);
+  background: #fff;
+}
+.field textarea { resize: vertical; min-height: 80px; }
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 9px 18px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all .15s var(--ease);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary {
+  background: var(--maroon-800);
+  color: #fff;
+  border-color: var(--maroon-800);
+}
+.btn-primary:hover { background: var(--maroon-900); }
+.btn-accent {
+  background: var(--gold-500);
+  color: var(--maroon-900);
+  border-color: var(--gold-500);
+  font-weight: 600;
+}
+.btn-accent:hover { background: var(--gold-600); }
+.btn-ghost {
+  background: transparent;
+  color: var(--maroon-800);
+  border-color: var(--line-strong);
+}
+.btn-ghost:hover { border-color: var(--maroon-700); background: var(--maroon-50); }
+.btn-danger {
+  background: #fff;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-sm { padding: 5px 11px; font-size: 0.78rem; }
+
+/* ---------- Tables ---------- */
+.tbl-wrap {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+table.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.tbl thead th {
+  background: var(--maroon-50);
+  color: var(--maroon-900);
+  text-align: left;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--gold-500);
+}
+.tbl tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.tbl tbody tr:hover { background: var(--paper-2); }
+.tbl tbody tr:last-child td { border-bottom: none; }
+
+.tbl .numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl .actions { text-align: right; white-space: nowrap; }
+
+/* ---------- Status pills ---------- */
+.pill {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+.pill-pending  { color: var(--warning); border-color: var(--warning); background: var(--warning-bg); }
+.pill-approved { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.pill-rejected { color: var(--danger);  border-color: var(--danger);  background: var(--danger-bg); }
+.pill-enrolled { color: #fff; border-color: var(--maroon-800); background: var(--maroon-800); }
+.pill-paid     { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.pill-unpaid   { color: var(--danger);  border-color: var(--danger);  background: var(--danger-bg); }
+.pill-partial  { color: var(--warning); border-color: var(--warning); background: var(--warning-bg); }
+
+/* ---------- Empty state ---------- */
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--ink-500);
+}
+.empty .ico {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  color: var(--gold-600);
+  margin-bottom: 8px;
+}
+.empty .title { color: var(--maroon-900); font-weight: 600; margin-bottom: 4px; }
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(26, 22, 20, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 800;
+  backdrop-filter: blur(2px);
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: 5px;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-top: 4px solid var(--gold-500);
+  animation: modalIn .22s var(--ease);
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h3 { font-size: 1.3rem; }
+.modal-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.4rem; color: var(--ink-500); padding: 0; line-height: 1;
+}
+.modal-body { padding: 24px; }
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  background: var(--paper);
+}
+
+/* ---------- Section subtitle ---------- */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--maroon-900);
+  margin: 28px 0 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--gold-500), transparent);
+}
+
+/* ----- Collapsible section header ----- */
+/* When a section needs a "Hide / Show" button alongside its title we wrap
+   the h2 in .section-title-row. The h2 keeps its own gold gradient line
+   (via ::after); the button sits to the right of it. */
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title-row .section-title {
+  flex: 1;
+  margin: 28px 0 14px; /* unchanged from .section-title */
+}
+.section-collapse-btn {
+  background: transparent;
+  border: 1px solid var(--ink-100);
+  color: var(--maroon-700);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.section-collapse-btn:hover {
+  background: var(--paper);
+  border-color: var(--maroon-700);
+  color: var(--maroon-900);
+}
+.section-collapse-btn:focus-visible {
+  outline: 2px solid var(--gold-500);
+  outline-offset: 2px;
+}
+.section-collapse-btn .chev {
+  display: inline-block;
+  transition: transform 0.18s ease;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.section-collapse-btn[aria-expanded="false"] .chev {
+  transform: rotate(-90deg);
+}
+
+.section-collapsible {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.18s ease, margin 0.25s ease;
+}
+.section-collapsible[hidden] {
+  display: block !important;     /* override the [hidden] UA default */
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* ---------- Search bar ---------- */
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.search-bar input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background: #fff;
+}
+.search-bar input:focus { outline: none; border-color: var(--maroon-700); }
+
+/* ---------- Bar chart (DIKW analytics) ---------- */
+.bar-chart { display: flex; flex-direction: column; gap: 10px; }
+.bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+.bar-row .lbl { color: var(--ink-700); font-weight: 500; }
+.bar-row .bar-track {
+  height: 14px;
+  background: var(--paper-2);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-row .bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--maroon-700), var(--maroon-500));
+  border-right: 2px solid var(--gold-500);
+  transition: width .6s var(--ease);
+}
+.bar-row .bar-fill.gold {
+  background: linear-gradient(90deg, var(--gold-600), var(--gold-400));
+  border-right-color: var(--maroon-700);
+}
+.bar-row .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-700); font-weight: 600; }
+
+/* ---------- Insight cards (DIKW) ---------- */
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.insight {
+  padding: 18px 20px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--gold-500);
+}
+.insight .layer {
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-700);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.insight h4 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--maroon-900);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.insight p { font-size: 0.88rem; color: var(--ink-700); margin: 0; line-height: 1.5; }
+
+/* Animations */
+@keyframes hlcToastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; }
+  .main { padding: 24px; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+/* ============================================================
+   LOGO PLACEHOLDER
+   ============================================================ */
+.logo-mark { display: block; line-height: 0; }
+.logo-mark svg, .logo-mark img { width: 100%; height: 100%; display: block; }
+/* object-fit: contain keeps the image's aspect ratio inside the square
+   container (sidebar 64×64, auth 110×110). Without this, a wide PNG would
+   stretch vertically and a tall PNG would stretch horizontally. */
+.logo-mark img { object-fit: contain; }
+.logo-placeholder { opacity: 0.5; }
+
+/* Logo slot in sidebar (above brand) */
+.sidebar-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 12px;
+}
+
+/* ============================================================
+   AUTH PAGE
+   ============================================================ */
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(168, 132, 42, 0.06), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(61, 13, 17, 0.05), transparent 50%),
+    var(--paper);
+  padding: 40px 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--ink-100);
+  box-shadow: 0 20px 60px rgba(61, 13, 17, 0.08);
+  padding: 40px 36px 32px;
+}
+
+.auth-logo {
+  width: 110px;
+  height: 110px;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+.auth-title {
+  text-align: center;
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  font-size: 1.6rem;
+  margin: 4px 0 2px;
+}
+
+.auth-sub {
+  text-align: center;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+  margin-bottom: 28px;
+  letter-spacing: 0.04em;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid var(--ink-100);
+  margin-bottom: 24px;
+}
+.auth-tabs button {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink-500);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.auth-tabs button.active {
+  color: var(--maroon-900);
+  border-bottom-color: var(--gold-500);
+  font-weight: 600;
+}
+
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+
+.auth-form .field { display: flex; flex-direction: column; gap: 6px; }
+.auth-form label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+  font-weight: 600;
+}
+.auth-form input,
+.auth-form select {
+  padding: 11px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  background: var(--paper);
+  transition: border-color 0.15s;
+}
+.auth-form input:focus,
+.auth-form select:focus {
+  outline: none;
+  border-color: var(--gold-500);
+  background: var(--surface);
+}
+
+.auth-role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.auth-role-grid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.92rem;
+  color: var(--ink-700);
+  font-weight: 500;
+  background: var(--paper);
+  transition: all 0.15s;
+}
+.auth-role-grid label:hover { border-color: var(--gold-400); }
+.auth-role-grid input[type="radio"] { accent-color: var(--maroon-700); margin: 0; }
+.auth-role-grid input[type="radio"]:checked + span { color: var(--maroon-900); font-weight: 600; }
+.auth-role-grid label:has(input:checked) {
+  border-color: var(--maroon-700);
+  background: rgba(61, 13, 17, 0.03);
+}
+
+.auth-submit {
+  margin: 10px auto 0;
+  padding: 12px 32px;
+  font-size: 0.95rem;
+  display: block;
+  min-width: 220px;
+  align-self: center;
+}
+
+.auth-error {
+  background: #fdf3f3;
+  color: #8a1a1f;
+  border: 1px solid #f0d0d2;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  display: none;
+}
+.auth-error.show { display: block; }
+
+.auth-footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--ink-500);
+  margin-top: 24px;
+}
+
+/* ============================================================
+   USER STRIP (in sidebar footer of each module)
+   ============================================================ */
+.user-strip {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+}
+.user-strip .name { font-weight: 600; color: var(--gold-400); }
+.user-strip .email { color: rgba(255, 255, 255, 0.6); font-size: 0.74rem; word-break: break-all; }
+.user-strip .logout-btn {
+  display: block;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--gold-400);
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  width: 100%;
+  font-family: var(--font-body);
+  transition: background 0.15s;
+}
+.user-strip .logout-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ============================================================
+   GSA (General Student Account) — Cashier
+   ============================================================ */
+.gsa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+}
+
+.gsa-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 12px;
+  padding: 20px;
+  border-top: 3px solid var(--maroon-700);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gsa-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--ink-100);
+}
+.gsa-head .name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--maroon-900);
+  margin: 0;
+}
+.gsa-head .meta {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.gsa-section { display: flex; flex-direction: column; gap: 6px; }
+.gsa-section h5 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-500);
+  margin: 0;
+  font-weight: 600;
+}
+.gsa-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  gap: 10px;
+}
+.gsa-line .lbl { flex: 1; color: var(--ink-700); }
+.gsa-line .amt { color: var(--maroon-900); font-weight: 600; min-width: 80px; text-align: right; }
+.gsa-line.paid .lbl { color: var(--ink-500); text-decoration: line-through; }
+.gsa-line.paid .amt { color: var(--ink-500); }
+
+.gsa-empty-line { font-size: 0.82rem; color: var(--ink-500); padding: 4px 10px; font-style: italic; }
+
+.gsa-totals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ink-100);
+  font-size: 0.85rem;
+}
+.gsa-totals .row { display: flex; justify-content: space-between; }
+.gsa-totals .row.balance {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, var(--gold-300), var(--gold-500));
+  color: var(--maroon-900);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-top: 4px;
+}
+
+.gsa-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================
+   FACULTY MANAGEMENT
+   ============================================================ */
+.faculty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.faculty-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.faculty-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-300), var(--maroon-700));
+  display: grid;
+  place-items: center;
+  color: var(--surface);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.faculty-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+.faculty-card h4 {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  margin: 0;
+  font-size: 1.05rem;
+}
+.faculty-card .pos {
+  font-size: 0.82rem;
+  color: var(--gold-700);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.faculty-card .dep { font-size: 0.85rem; color: var(--ink-700); }
+.faculty-card .contact { font-size: 0.78rem; color: var(--ink-500); word-break: break-all; }
+
+.photo-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.photo-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px dashed var(--ink-300);
+  display: grid;
+  place-items: center;
+  color: var(--ink-500);
+  font-size: 0.7rem;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ============================================================
+   SUBJECTS (Registrar)
+   ============================================================ */
+.subject-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.subject-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 3px solid var(--gold-500);
+}
+.subject-card h4 {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  margin: 0;
+  font-size: 1.05rem;
+}
+.subject-card .grade {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-500);
+}
+.subject-card .fee {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  margin-top: 4px;
+}
+.subject-card .desc {
+  font-size: 0.82rem;
+  color: var(--ink-700);
+  margin: 4px 0 8px;
+}
+.subject-card .actions { display: flex; gap: 6px; margin-top: auto; }
+
+/* Subject assignment checklist (in student detail modal) */
+.subject-assign {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.subject-assign label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  background: var(--paper);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.subject-assign label:hover { border-color: var(--gold-400); }
+.subject-assign label.assigned { background: rgba(168, 132, 42, 0.08); cursor: not-allowed; opacity: 0.7; }
+.subject-assign .info { display: flex; flex-direction: column; gap: 2px; }
+.subject-assign .info .nm { font-weight: 600; color: var(--maroon-900); }
+.subject-assign .info .gr { font-size: 0.78rem; color: var(--ink-500); }
+.subject-assign .fee { font-weight: 600; color: var(--maroon-900); }
+
+/* ============================================================
+   AUTOFILL & TEMPLATES
+   ============================================================ */
+.autofill-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--gold-700);
+  background: rgba(168, 132, 42, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.template-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(224, 194, 90, 0.08), rgba(168, 132, 42, 0.04));
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+}
+.template-bar .label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-700);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.template-bar .btn-template {
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 6px;
+  color: var(--maroon-900);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+.template-bar .btn-template:hover {
+  background: var(--gold-300);
+  border-color: var(--gold-500);
+}
+.template-bar select.template-select {
+  font-size: 0.82rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-100);
+  background: var(--surface);
+  font-family: var(--font-body);
+  color: var(--ink-700);
+}
+
+/* Common-charge dropdown styled inline with form */
+.common-charge-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--paper);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px dashed var(--ink-100);
+}
+.common-charge-pick label {
+  font-size: 0.78rem;
+  color: var(--ink-700);
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.common-charge-pick select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--ink-100);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   BULK IMPORT
+   ============================================================ */
+.import-box {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.import-box h4 {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.import-box .help {
+  font-size: 0.82rem;
+  color: var(--ink-500);
+  margin-bottom: 12px;
+}
+
+.import-box code {
+  background: var(--paper);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--maroon-700);
+}
+
+.import-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px;
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--paper);
+  resize: vertical;
+}
+
+.import-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.import-preview {
+  margin-top: 14px;
+  border-top: 1px dashed var(--ink-100);
+  padding-top: 14px;
+}
+
+.import-preview h5 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-700);
+  margin: 0 0 8px;
+}
+
+.import-preview .summary {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.import-preview .summary .ok    { color: var(--success); font-weight: 600; }
+.import-preview .summary .err   { color: var(--danger); font-weight: 600; }
+.import-preview .summary .warn  { color: var(--gold-700); font-weight: 600; }
+
+.import-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  max-height: 240px;
+  display: block;
+  overflow-y: auto;
+}
+.import-preview thead { background: var(--paper); position: sticky; top: 0; }
+.import-preview th, .import-preview td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ink-100);
+  text-align: left;
+}
+.import-preview tr.invalid td { background: rgba(220, 53, 69, 0.05); }
+.import-preview tr.invalid td:last-child { color: var(--danger); font-size: 0.78rem; }
+
+/* ---- File upload row + template button ---- */
+.import-source-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: var(--paper);
+  border: 1px dashed var(--ink-100);
+  border-radius: 8px;
+}
+
+.import-source-row .file-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--maroon-700);
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.import-source-row .file-pick:hover {
+  border-color: var(--maroon-700);
+  background: #fff;
+}
+.import-source-row .file-pick input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+.import-source-row .file-pick.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.import-source-row .file-name {
+  font-size: 0.82rem;
+  color: var(--ink-500);
+  font-style: italic;
+}
+.import-source-row .or {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-500);
+  padding: 0 4px;
+}
+.import-source-row .template-link {
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: var(--maroon-700);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px 2px;
+}
+.import-source-row .template-link:hover { color: var(--maroon-900); }
+
+.import-lib-warning {
+  font-size: 0.78rem;
+  color: var(--gold-700);
+  margin: -6px 0 12px;
+}
+
+/* ---- Header mapping ribbon (shown in preview) ---- */
+.import-preview .mapping {
+  font-size: 0.78rem;
+  color: var(--ink-700);
+  margin: 4px 0 12px;
+  background: var(--paper);
+  border-radius: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--ink-100);
+}
+.import-preview .mapping strong { color: var(--ink-900); }
+.import-preview .mapping .mapped-chip {
+  display: inline-block;
+  background: rgba(15, 81, 50, 0.08);
+  color: var(--success);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+  font-size: 0.74rem;
+}
+.import-preview .mapping .unmapped-chip {
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--gold-700);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+  font-size: 0.74rem;
+}
+.import-preview .mapping .missing-chip {
+  display: inline-block;
+  background: rgba(220, 53, 69, 0.08);
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+  font-size: 0.74rem;
+}
+
+/* ============================================================
+   SECTION DIVIDER (used between Charges & Misc Fees panels)
+   ============================================================ */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ink-100) 30%, var(--ink-100) 70%, transparent);
+  margin: 40px 0 24px;
+}
+
+.section-sub {
+  font-size: 0.88rem;
+  color: var(--ink-500);
+  margin: -8px 0 16px;
+  max-width: 720px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   MISC FEES CATALOG
+   ============================================================ */
+.miscfee-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.miscfee-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 3px solid var(--ink-300);
+  transition: border-color 0.15s;
+}
+.miscfee-card.scope-school   { border-left-color: var(--maroon-700); }
+.miscfee-card.scope-grades   { border-left-color: #1f6f47; }
+.miscfee-card.scope-optional { border-left-color: var(--gold-500); }
+
+.miscfee-card .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.miscfee-card h4 {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+.miscfee-card .scope-pill {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.miscfee-card .scope-pill.school   { background: rgba(61, 13, 17, 0.08);  color: var(--maroon-900); }
+.miscfee-card .scope-pill.grades   { background: rgba(31, 111, 71, 0.10); color: #1f6f47; }
+.miscfee-card .scope-pill.optional { background: rgba(168, 132, 42, 0.12); color: var(--gold-700); }
+
+/* List of grade-level pills shown on a 'grades'-scope fee card */
+.miscfee-card .miscfee-grade-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.miscfee-card .miscfee-grade-pill {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(31, 111, 71, 0.08);
+  color: #1f6f47;
+  border: 1px solid rgba(31, 111, 71, 0.18);
+  font-weight: 500;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   GRADE-LEVEL CHIP PICKER (Misc Fee form)
+   ============================================================ */
+.grade-chip-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.grade-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  font-size: 0.82rem;
+  color: var(--ink-700);
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s var(--ease), border-color .12s var(--ease), color .12s var(--ease);
+}
+.grade-chip:hover {
+  border-color: var(--maroon-700);
+  color: var(--maroon-900);
+}
+.grade-chip input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.grade-chip:has(input:checked) {
+  background: var(--maroon-700);
+  border-color: var(--maroon-700);
+  color: #fff;
+  font-weight: 500;
+}
+/* Fallback for browsers without :has() support — keyboard focus still works */
+.grade-chip input:focus-visible + span {
+  outline: 2px solid var(--gold-500);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.grade-chip-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.grade-chip-hint {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.btn-xs {
+  font-size: 0.74rem;
+  padding: 4px 10px;
+  letter-spacing: 0.04em;
+}
+
+.miscfee-card .cat {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+}
+.miscfee-card .amt {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+}
+.miscfee-card .desc {
+  font-size: 0.82rem;
+  color: var(--ink-700);
+  line-height: 1.5;
+}
+.miscfee-card .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+/* Note shown on a fee card when it's rendered inside a grade subgroup
+   but the underlying fee is shared across multiple grades. */
+.miscfee-card .miscfee-multigrade-note {
+  font-size: 0.72rem;
+  color: #1f6f47;
+  background: rgba(31, 111, 71, 0.06);
+  border-left: 2px solid #1f6f47;
+  padding: 4px 8px;
+  border-radius: 2px;
+  font-style: italic;
+}
+
+/* "Also covers:" label preceding the grade-pill list when the card sits
+   inside a particular grade subgroup. */
+.miscfee-card .miscfee-grade-list-lbl {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+  font-weight: 600;
+  margin-right: 4px;
+  align-self: center;
+}
+
+/* ============================================================
+   MISC FEES SECTIONS & PER-GRADE GROUPS
+   Three top-level sections (School-wide / Grade-specific / Optional)
+   each with a header strip; Grade-specific contains one collapsible
+   <details> subgroup per grade level.
+   ============================================================ */
+.mf-section {
+  margin-bottom: 28px;
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mf-section + .mf-section { margin-top: 0; }
+
+.mf-section-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--surface) 100%);
+  border-bottom: 1px solid var(--ink-100);
+}
+.mf-section-head > div:first-child { flex: 1; min-width: 0; }
+
+.mf-section-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.mf-section-sub {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+.mf-section-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Color accent on the top-left of each section, mirroring the card scope colors */
+.mf-section-school   { border-left: 3px solid var(--maroon-700); }
+.mf-section-grades   { border-left: 3px solid #1f6f47; }
+.mf-section-optional { border-left: 3px solid var(--gold-500); }
+
+.mf-section .miscfee-grid {
+  padding: 14px 18px;
+}
+
+/* ----- Per-grade collapsible subgroup ----- */
+.mf-grade-group {
+  border-top: 1px solid var(--ink-100);
+}
+.mf-grade-group:first-of-type { border-top: none; }
+
+.mf-grade-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: var(--paper);
+  transition: background .12s var(--ease);
+}
+.mf-grade-summary::-webkit-details-marker { display: none; }
+.mf-grade-summary:hover { background: rgba(31, 111, 71, 0.04); }
+
+.mf-chev {
+  display: inline-block;
+  transition: transform .15s var(--ease);
+  color: var(--ink-500);
+  font-size: 0.78rem;
+}
+.mf-grade-group[open] > .mf-grade-summary .mf-chev {
+  transform: rotate(90deg);
+}
+
+.mf-grade-name {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  flex: 0 0 auto;
+}
+.mf-grade-count {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+  flex: 1;
+}
+
+/* Per-grade total badge (right side of each grade summary row).
+   Shows the full per-student bill (school-wide + grade-specific). */
+.mf-grade-total,
+.mf-section-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  background: rgba(168, 132, 42, 0.10);
+  border: 1px solid rgba(168, 132, 42, 0.30);
+  border-radius: 4px;
+  line-height: 1.2;
+}
+.mf-grade-total-lbl {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--ink-500);
+  font-weight: 600;
+}
+.mf-grade-total-val {
+  font-family: var(--font-display);
+  font-size: 1.0rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The grid inside a grade group keeps consistent padding with the
+   header strip above it. */
+.mf-grade-grid {
+  padding: 12px 18px 16px 18px;
+}
+
+/* ============================================================
+   RICHER GSA (Generated Schedule and Assessment) — K-10
+   ============================================================ */
+.gsa-card.gsa-rich {
+  padding: 0;
+  border-top: 4px solid var(--maroon-700);
+  overflow: hidden;
+}
+
+.gsa-doc-head {
+  background: linear-gradient(135deg, var(--paper) 0%, var(--surface) 100%);
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--ink-100);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  align-items: start;
+}
+.gsa-doc-head .title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gsa-doc-head .doc-eyebrow {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gold-700);
+  font-weight: 600;
+}
+.gsa-doc-head h3.student-name {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+.gsa-doc-head .student-meta {
+  font-size: 0.82rem;
+  color: var(--ink-700);
+  line-height: 1.5;
+}
+.gsa-doc-head .student-meta .lbl {
+  color: var(--ink-500);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+}
+.gsa-doc-head .status-block {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+.gsa-doc-head .gen-date {
+  font-size: 0.72rem;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gsa-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.gsa-rich-section h5 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-500);
+  margin: 0 0 10px;
+  font-weight: 600;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.gsa-rich-section h5 .subtotal {
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--maroon-900);
+  font-weight: 600;
+}
+
+.gsa-rich-section .gsa-line {
+  background: transparent;
+  padding: 5px 4px;
+  border-bottom: 1px dotted var(--ink-100);
+  border-radius: 0;
+}
+.gsa-rich-section .gsa-line:last-child { border-bottom: none; }
+
+.gsa-rich-section .gsa-line .lbl-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.gsa-rich-section .gsa-line .lbl { color: var(--ink-900); font-size: 0.9rem; }
+.gsa-rich-section .gsa-line .lbl-cat {
+  font-size: 0.7rem;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Totals block */
+.gsa-totals-rich {
+  background: var(--paper);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+.gsa-totals-rich .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.gsa-totals-rich .row .lbl { color: var(--ink-700); }
+.gsa-totals-rich .row .val { color: var(--maroon-900); font-weight: 500; font-variant-numeric: tabular-nums; }
+.gsa-totals-rich .row.gross {
+  padding-top: 8px;
+  border-top: 1px solid var(--ink-100);
+  font-weight: 600;
+}
+.gsa-totals-rich .row.discount .val { color: var(--success); }
+.gsa-totals-rich .row.net {
+  font-size: 1rem;
+  padding-top: 8px;
+  border-top: 1px solid var(--ink-100);
+}
+.gsa-totals-rich .row.net .val { font-weight: 700; }
+.gsa-totals-rich .row.balance {
+  background: linear-gradient(135deg, var(--gold-300), var(--gold-500));
+  color: var(--maroon-900);
+  margin: 6px -16px -14px;
+  padding: 10px 16px;
+  border-radius: 0 0 8px 8px;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.gsa-totals-rich .row.balance .lbl,
+.gsa-totals-rich .row.balance .val { color: var(--maroon-900); }
+
+/* Payment schedule */
+.gsa-payment-mode {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.gsa-payment-mode h5 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-500);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.gsa-payment-mode .schedule-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--ink-100);
+}
+.gsa-payment-mode .schedule-row:last-child { border-bottom: none; }
+.gsa-payment-mode .schedule-row .label { font-weight: 500; color: var(--ink-900); }
+.gsa-payment-mode .schedule-row .due { font-size: 0.78rem; color: var(--ink-500); }
+.gsa-payment-mode .schedule-row .amt { font-weight: 600; color: var(--maroon-900); font-variant-numeric: tabular-nums; }
+
+/* Footer */
+.gsa-doc-foot {
+  background: var(--paper);
+  padding: 12px 22px;
+  font-size: 0.74rem;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--ink-100);
+}
+.gsa-doc-foot .processed-by .name {
+  color: var(--ink-700);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.85rem;
+}
+
+/* GSA actions */
+.gsa-actions-rich {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 22px 18px;
+  border-top: 1px dashed var(--ink-100);
+}
+
+/* Print styles for the in-page view (legacy fallback if user uses
+   browser's File→Print on the main page). The Print button now opens
+   a dedicated print window with its own styles, so this is just a
+   safety net. */
+@media print {
+  body { background: white; }
+  .sidebar, .page-header, .search-bar, .gsa-actions-rich, .nav-list, .user-strip, .sidebar-logo { display: none !important; }
+  .app-shell { grid-template-columns: 1fr !important; }
+  .main { padding: 0 !important; }
+  .gsa-card.gsa-rich { box-shadow: none; border: 1px solid #999; page-break-after: always; }
+  /* Force grid into single column so cards print full-width */
+  .gsa-grid { grid-template-columns: 1fr !important; display: block !important; }
+}
+
+/* Responsive: stack the GSA head on mobile */
+@media (max-width: 600px) {
+  .gsa-doc-head { grid-template-columns: 1fr; }
+  .gsa-doc-head .status-block { text-align: left; align-items: flex-start; }
+  .gsa-doc-head { padding: 14px 16px; }
+  .gsa-body { padding: 14px 16px; }
+}
+
+/* ============================================================
+   GSA — Collapsible cards
+   ============================================================ */
+
+/* Override grid: collapsible cards work better as a vertical list */
+.gsa-grid:has(details.gsa-collapsible) {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.gsa-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.gsa-bulk-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+/* The <details> card itself */
+details.gsa-collapsible {
+  padding: 0;
+  cursor: default; /* summary handles click */
+}
+details.gsa-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: var(--surface);
+  border-radius: 11px 11px 0 0;
+  transition: background 0.15s;
+  user-select: none;
+}
+details.gsa-collapsible > summary::-webkit-details-marker { display: none; }
+details.gsa-collapsible > summary:hover { background: var(--paper); }
+details.gsa-collapsible[open] > summary {
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink-100);
+  border-radius: 11px 11px 0 0;
+}
+
+/* Chevron rotates when open */
+.gsa-summary .chev {
+  font-size: 0.78rem;
+  color: var(--maroon-700);
+  transition: transform 0.18s ease;
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+}
+details.gsa-collapsible[open] > summary .chev { transform: rotate(90deg); }
+
+.gsa-summary .sum-name-block { flex: 1; min-width: 0; }
+.gsa-summary .sum-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gsa-summary .sum-meta {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin-top: 1px;
+}
+.gsa-summary .sum-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  color: var(--ink-500);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.gsa-summary .sum-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 110px;
+}
+.gsa-summary .sum-balance-lbl {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-500);
+}
+.gsa-summary .sum-balance-val {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.gsa-summary .sum-balance-val.due  { color: var(--maroon-900); }
+.gsa-summary .sum-balance-val.zero { color: var(--success); }
+
+/* Hide the document chrome inside details until expanded — the summary
+   already shows status + balance, no need to show the doc-head/body etc.
+   Native <details> already hides children when not open, so we only need
+   to make sure spacing is comfortable when expanded. */
+details.gsa-collapsible:not([open]) > .gsa-doc-head,
+details.gsa-collapsible:not([open]) > .gsa-body,
+details.gsa-collapsible:not([open]) > .gsa-doc-foot,
+details.gsa-collapsible:not([open]) > .gsa-actions-rich { display: none; }
+
+/* Mobile summary stacks balance below name */
+@media (max-width: 600px) {
+  .gsa-summary .sum-id { display: none; }
+  .gsa-summary > .pill { display: none; }
+}
+
+/* ============================================================
+   Cashier discount section in the GSA
+   ============================================================ */
+.gsa-discount-section h5 .subtotal { color: var(--success); }
+.gsa-line.discount-line .lbl,
+.gsa-line.discount-line .amt { color: var(--success); }
+
+/* ============================================================
+   Discount block on Collect Payment form
+   ============================================================ */
+.discount-block {
+  background: var(--paper);
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: border-color 0.15s;
+}
+.discount-block.overflow {
+  border-color: var(--danger);
+  background: rgba(220, 53, 69, 0.04);
+}
+.discount-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+/* Segmented control for discount type */
+.discount-toggle {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.discount-toggle .seg-opt {
+  position: relative;
+  cursor: pointer;
+}
+.discount-toggle .seg-opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.discount-toggle .seg-opt span {
+  display: inline-block;
+  padding: 7px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink-700);
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+.discount-toggle .seg-opt input:checked + span {
+  background: var(--maroon-700);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+.discount-input-wrap { min-width: 140px; }
+.discount-input-wrap label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-500);
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: block;
+}
+.discount-input-wrap input {
+  padding: 8px 12px;
+  border: 1px solid var(--ink-100);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  background: var(--surface);
+  width: 100%;
+}
+.discount-input-wrap input:focus {
+  outline: none;
+  border-color: var(--gold-500);
+}
+
+/* Payment breakdown (replaces simple total-display) */
+.pay-breakdown {
+  background: var(--paper);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.pay-breakdown .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.pay-breakdown .row span:first-child { color: var(--ink-700); }
+.pay-breakdown .row .discount        { color: var(--success); font-weight: 600; }
+.pay-breakdown .row.total {
+  border-top: 1px solid var(--ink-100);
+  padding-top: 6px;
+  margin-top: 2px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+}
+.pay-breakdown .row.total span { color: var(--maroon-900); }
+
+/* ============================================================
+   School-year banner (top of misc fees view)
+   ============================================================ */
+.sy-banner {
+  background: linear-gradient(180deg, #fffaf0, #fff5e1);
+  border: 1px solid var(--maroon-100, #f4d8c8);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.sy-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.sy-banner-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sy-banner-cell .sy-lbl {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+.sy-banner-cell .sy-val {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--maroon-900);
+}
+.sy-banner-cell .sy-select {
+  padding: 6px 10px;
+  border: 1px solid var(--ink-100);
+  border-radius: 6px;
+  background: white;
+  font-size: 0.92rem;
+  min-width: 200px;
+}
+.sy-banner-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   Edit mode for the misc-fee form
+   ============================================================ */
+#miscfee-form-card.editing {
+  border: 2px solid var(--accent, #c89b3c);
+  background: linear-gradient(180deg, #fffaf0, #ffffff);
+}
+#miscfee-form-card.editing .card-header h3 {
+  color: var(--accent, #c89b3c);
+}
+
+/* ============================================================
+   Wide modal variant + bulk fee modal grid
+   ============================================================ */
+.modal.modal-wide {
+  max-width: 720px;
+}
+.bulkfee-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  border-top: 1px solid var(--ink-100);
+  padding-top: 14px;
+}
+@media (max-width: 600px) {
+  .bulkfee-rows { grid-template-columns: 1fr; }
+}
+.bulkfee-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.bulkfee-row-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  color: var(--ink-700);
+  cursor: pointer;
+}
+.bulkfee-row-check {
+  margin: 0;
+}
+.bulkfee-row-amount {
+  width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--ink-100);
+  border-radius: 5px;
+  font-size: 0.92rem;
+}
+
+/* ============================================================
+   Void payment modal info grid + voided row styling
+   ============================================================ */
+.void-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 18px;
+  background: var(--paper, #faf7f2);
+  padding: 14px;
+  border-radius: 6px;
+}
+.void-info-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.void-info-grid .lbl {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+.void-info-grid .val {
+  font-size: 0.95rem;
+  color: var(--ink-900);
+  font-weight: 500;
+}
+.row-voided {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--ink-500);
+}
+.row-voided td {
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 0, 0, 0.4);
+}
+.row-voided .pill-voided {
+  text-decoration: none;
+  display: inline-block;
+}
+.pill-voided {
+  background: var(--ink-100);
+  color: var(--ink-700);
+  font-size: 0.7rem;
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: help;
+}
+.btn.btn-danger {
+  background: #b3261e;
+  color: white;
+  border-color: #b3261e;
+}
+.btn.btn-danger:hover {
+  background: #9a1f18;
+  border-color: #9a1f18;
+}
+
+/* ============================================================
+   Activity log filters & pagination
+   ============================================================ */
+.activity-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(120px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ink-100);
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .activity-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.activity-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.activity-filter-group label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+.activity-filter-group input,
+.activity-filter-group select {
+  padding: 6px 10px;
+  border: 1px solid var(--ink-100);
+  border-radius: 5px;
+  font-size: 0.9rem;
+  background: white;
+}
+.activity-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0 8px;
+}

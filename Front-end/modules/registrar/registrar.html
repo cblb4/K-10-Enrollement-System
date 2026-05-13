@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registrar · Heartworks LC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/shared.css" />
+  <link rel="stylesheet" href="registrar.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div id="sidebar-logo" class="sidebar-logo"></div>
+      <div class="brand">
+        <span class="mark">Heartworks</span>
+        <span class="sub">Learning Center</span>
+      </div>
+      <span class="role-tag">Registrar</span>
+      <nav>
+        <ul class="nav-list">
+          <li><button data-view="dashboard" class="active">Dashboard</button></li>
+          <li><button data-view="enroll">New Enrollment</button></li>
+          <li><button data-view="students">Student Records</button></li>
+          <li><button data-view="gsa">Student GSA</button></li>
+          <li><button data-view="subjects">Subjects</button></li>
+          <li><button data-view="import">Bulk Import</button></li>
+        </ul>
+      </nav>
+      <div class="footer-note">
+        <div id="user-strip"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div class="title-block">
+          <div class="eyebrow" id="page-eyebrow">Front Desk</div>
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="meta" id="page-meta"></div>
+      </div>
+
+      <!-- ========== DASHBOARD ========== -->
+      <section class="view active" id="view-dashboard">
+        <div class="stat-grid" id="reg-stats"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent Enrollments</h3>
+            <span class="hint">Last 5 students added</span>
+          </div>
+          <div id="recent-enrollments"></div>
+        </div>
+      </section>
+
+      <!-- ========== NEW ENROLLMENT ========== -->
+      <section class="view" id="view-enroll">
+        <div class="card">
+          <div class="card-header">
+            <h3>Enroll a New Student</h3>
+            <span class="hint">All fields required unless noted</span>
+          </div>
+
+          <form id="enroll-form">
+            <div class="form-grid">
+              <div class="field">
+                <label for="firstName">First Name</label>
+                <input type="text" id="firstName" name="firstName" required />
+              </div>
+              <div class="field">
+                <label for="lastName">Last Name</label>
+                <input type="text" id="lastName" name="lastName" required />
+              </div>
+              <div class="field">
+                <label for="middleName">Middle Name <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <input type="text" id="middleName" name="middleName" />
+              </div>
+              <div class="field">
+                <label for="birthDate">Date of Birth</label>
+                <input type="date" id="birthDate" name="birthDate" required />
+              </div>
+              <div class="field">
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender" required>
+                  <option value="">— Select —</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="gradeLevel">Grade Level</label>
+                <select id="gradeLevel" name="gradeLevel" required>
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="guardianName">Parent / Guardian</label>
+                <input type="text" id="guardianName" name="guardianName" required />
+              </div>
+              <div class="field">
+                <label for="contact">Contact Number</label>
+                <input type="tel" id="contact" name="contact" required />
+              </div>
+              <div class="field full">
+                <label for="address">Home Address</label>
+                <input type="text" id="address" name="address" required />
+              </div>
+              <div class="field full">
+                <label for="notes">Notes <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <textarea id="notes" name="notes" placeholder="Special considerations, prior school, etc."></textarea>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-primary">Submit Enrollment</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ========== STUDENT RECORDS ========== -->
+      <section class="view" id="view-students">
+        <div class="search-bar">
+          <input type="text" id="students-search" placeholder="Search by name, grade, or status…" />
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="students-tbl">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Grade</th>
+                <th>Guardian</th>
+                <th>Status</th>
+                <th>Enrolled</th>
+                <th class="actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ========== STUDENT GSA — academic schedule & assessment ========== -->
+      <section class="view" id="view-gsa">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <h3>Student GSA — Schedule & Assessment</h3>
+            <span class="hint">Academic record only · no financial figures</span>
+          </div>
+          <p style="color:var(--ink-700); font-size:0.9rem; margin:0;">
+            Each row shows the student's enrollment status and curriculum at a glance. Expand a row to see the full GSA — assigned subjects, applied fees by name, section, and school year. Use <strong>Print</strong> to generate a copy of the academic schedule for the student.
+          </p>
+        </div>
+        <div class="gsa-controls">
+          <div class="search-bar" style="margin-bottom:0; flex:1;">
+            <input type="text" id="gsa-search" placeholder="Search by name, grade, or status…" />
+          </div>
+          <div class="gsa-bulk-toggle">
+            <button type="button" class="btn btn-ghost btn-sm" id="gsa-expand-all">Expand all</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="gsa-collapse-all">Collapse all</button>
+          </div>
+        </div>
+        <div id="gsa-grid" class="gsa-grid"></div>
+      </section>
+
+      <!-- ========== SUBJECTS ========== -->
+      <section class="view" id="view-subjects">
+        <div class="card" id="subject-form-card">
+          <div class="card-header">
+            <h3 id="subject-form-title">Add a Subject</h3>
+            <span class="hint" id="subject-form-hint">Subjects defined here can be assigned to students as part of their curriculum</span>
+          </div>
+
+          <form id="subject-form">
+            <input type="hidden" id="subj-edit-id" value="" />
+            <div class="form-grid">
+              <div class="field">
+                <label for="subj-name">Subject Name</label>
+                <input type="text" id="subj-name" placeholder="e.g. Mathematics 7" required />
+              </div>
+              <div class="field">
+                <label for="subj-grade">Grade Level</label>
+                <select id="subj-grade" required>
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="subj-desc">Description <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <textarea id="subj-desc" placeholder="Brief description of the subject…"></textarea>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="subj-cancel-edit" style="display:none;">Cancel edit</button>
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-primary" id="subj-submit">Add Subject</button>
+            </div>
+          </form>
+        </div>
+
+        <h2 class="section-title">Subject Catalog</h2>
+        <div class="search-bar">
+          <input type="text" id="subj-search" placeholder="Filter by name or grade…" />
+        </div>
+        <div id="subjects-list" class="subject-list"></div>
+      </section>
+
+      <!-- ========== BULK IMPORT ========== -->
+      <section class="view" id="view-import">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <h3>Bulk Import</h3>
+            <span class="hint">Paste rows from a spreadsheet to create many records at once</span>
+          </div>
+          <p style="color:var(--ink-700); font-size:0.9rem; margin:0;">
+            Copy your data from Excel / Google Sheets (with headers in the first row) and paste below.
+            Columns can be tab- or comma-separated. The system shows a preview before importing.
+          </p>
+        </div>
+
+        <!-- Students importer -->
+        <div class="import-box" id="import-students">
+          <h4>Students</h4>
+          <div class="help">
+            Required columns: <code>firstName</code>, <code>lastName</code>, <code>birthDate</code> (YYYY-MM-DD), <code>gender</code>, <code>gradeLevel</code>, <code>guardianName</code>, <code>contact</code>, <code>address</code>.
+            Optional: <code>middleName</code>, <code>notes</code>.
+            Headers are matched loosely — &ldquo;First Name&rdquo;, &ldquo;FNAME&rdquo;, &ldquo;Date of Birth&rdquo; etc. all work.
+          </div>
+
+          <div class="import-source-row">
+            <label class="file-pick" data-file-pick="students">
+              <span>📂 Choose Excel/CSV file</span>
+              <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" data-import-file="students" />
+            </label>
+            <span class="file-name" data-file-name="students">no file selected</span>
+            <span class="or">or paste below</span>
+            <button type="button" class="template-link" data-import-template="students">↓ Download .xlsx template</button>
+          </div>
+          <div class="import-lib-warning" data-import-lib-warning="students" style="display:none;">
+            Excel parser unavailable (likely offline) — only CSV/TSV uploads and pasted data will work.
+          </div>
+
+          <textarea class="import-textarea" id="ta-students" placeholder="firstName	lastName	birthDate	gender	gradeLevel	guardianName	contact	address
+Maria	Cruz	2014-05-12	Female	Grade 5	Ana Cruz	09171234567	123 Mabini St
+Juan	Reyes	2013-08-22	Male	Grade 6	Pedro Reyes	09180000000	45 Rizal Ave"></textarea>
+          <div class="import-actions">
+            <button type="button" class="btn btn-ghost btn-sm" data-import-preview="students">Preview</button>
+            <button type="button" class="btn btn-primary btn-sm" data-import-commit="students" disabled>Import</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-import-clear="students">Clear</button>
+          </div>
+          <div class="import-preview" id="preview-students" style="display:none;"></div>
+        </div>
+
+        <!-- Subjects importer -->
+        <div class="import-box" id="import-subjects">
+          <h4>Subjects</h4>
+          <div class="help">
+            Required columns: <code>name</code>, <code>gradeLevel</code>.
+            Optional: <code>description</code>.
+          </div>
+
+          <div class="import-source-row">
+            <label class="file-pick" data-file-pick="subjects">
+              <span>📂 Choose Excel/CSV file</span>
+              <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" data-import-file="subjects" />
+            </label>
+            <span class="file-name" data-file-name="subjects">no file selected</span>
+            <span class="or">or paste below</span>
+            <button type="button" class="template-link" data-import-template="subjects">↓ Download .xlsx template</button>
+          </div>
+
+          <textarea class="import-textarea" id="ta-subjects" placeholder="name	gradeLevel	description
+Mathematics 7	Grade 7	Algebra and geometry
+English 7	Grade 7	"></textarea>
+          <div class="import-actions">
+            <button type="button" class="btn btn-ghost btn-sm" data-import-preview="subjects">Preview</button>
+            <button type="button" class="btn btn-primary btn-sm" data-import-commit="subjects" disabled>Import</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-import-clear="subjects">Clear</button>
+          </div>
+          <div class="import-preview" id="preview-subjects" style="display:none;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========== Student Detail Modal ========== -->
+  <div class="modal-backdrop" id="student-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="sm-name">Student</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body" id="sm-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Assign Subjects Modal ========== -->
+  <div class="modal-backdrop" id="assign-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="am-name">Assign Subjects</h3>
+        <button class="modal-close" data-close-assign>×</button>
+      </div>
+      <div class="modal-body">
+        <p id="am-info" style="color:var(--ink-500); font-size:0.88rem; margin-bottom:14px;"></p>
+        <div id="am-subjects" class="subject-assign"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-assign>Cancel</button>
+        <button class="btn btn-primary" id="am-submit">Assign Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Change Grade Modal ========== -->
+  <div class="modal-backdrop" id="grade-change-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="gc-name">Change Grade Level</h3>
+        <button class="modal-close" data-close-grade>×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.88rem; color:var(--ink-500); margin-bottom:14px;">
+          <strong>Correction</strong> updates the grade level only — useful for fixing typos. Existing charges and subjects stay as-is.<br />
+          <strong>Promotion</strong> rolls the account into a new term: previous subjects are archived, paid charges become history, and unpaid items are kept as <em>carry-over balances</em>. The new grade's auto-apply fees are billed automatically.
+        </p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="gc-grade">New grade level</label>
+            <select id="gc-grade" required></select>
+          </div>
+          <div class="field">
+            <label>Reason</label>
+            <div style="display:flex;gap:14px;align-items:center;font-size:0.92rem;">
+              <label style="display:flex;gap:6px;align-items:center;">
+                <input type="radio" name="gc-reason" value="correction" checked />
+                Correction
+              </label>
+              <label style="display:flex;gap:6px;align-items:center;">
+                <input type="radio" name="gc-reason" value="promotion" />
+                Promotion
+              </label>
+            </div>
+          </div>
+          <div class="field" id="gc-sy-field" style="display:none;">
+            <label for="gc-school-year">New school year</label>
+            <input type="text" id="gc-school-year" placeholder="e.g. 2026-2027" pattern="\d{4}-\d{4}" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-grade>Cancel</button>
+        <button class="btn btn-primary" id="gc-submit">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../shared/config.js"></script>
+  <script src="../../shared/utils.js"></script>
+  <script src="../../shared/api.js"></script>
+  <script src="../../shared/storage.js"></script>
+  <script src="../../shared/auth.js"></script>
+  <script src="../../shared/logo.js"></script>
+
+  <script src="../../shared/csv.js"></script>
+  <!--
+    SheetJS — community edition, MIT-licensed. Loaded from CDN so the
+    project keeps its no-install footprint. If the CDN is blocked the
+    bulk-import file picker degrades to CSV-only with a visible notice;
+    the rest of the page is unaffected.
+    For production: pin a specific version + SRI hash (see SheetJS docs).
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+  <script src="../../shared/import-helpers.js"></script>
+  <script>
+    // Bootstrap the data cache from the backend, then load the module.
+    // If the user isn't authenticated bootstrap will 401 and api.js will
+    // redirect to ../../auth.html automatically.
+    HLC_STORAGE.bootstrap()
+      .then(() => {
+        const s = document.createElement('script');
+        s.src = 'registrar.js';
+        // Dynamically-loaded scripts arrive AFTER the document's own
+        // DOMContentLoaded has fired, so listeners registered inside the
+        // module would never trigger. Re-fire the event when the script
+        // finishes loading so init() runs.
+        s.onload = () => document.dispatchEvent(new Event('DOMContentLoaded'));
+        document.body.appendChild(s);
+      })
+      .catch(err => {
+        document.body.innerHTML =
+          '<div style="padding:40px;text-align:center;font-family:Inter,sans-serif;">' +
+            '<h1 style="color:#8a1a1a;">Couldn&rsquo;t load data</h1>' +
+            '<p>' + (err && err.message ? err.message : 'Unknown error') + '</p>' +
+            '<p><a href="../../auth.html">Sign in again</a></p>' +
+          '</div>';
+      });
+  </script>
+</body>
+</html>

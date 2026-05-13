@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cashier · Heartworks LC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/shared.css" />
+  <link rel="stylesheet" href="cashier.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div id="sidebar-logo" class="sidebar-logo"></div>
+      <div class="brand">
+        <span class="mark">Heartworks</span>
+        <span class="sub">Learning Center</span>
+      </div>
+      <span class="role-tag">Cashier</span>
+      <nav>
+        <ul class="nav-list">
+          <li><button data-view="dashboard" class="active">Dashboard</button></li>
+          <li><button data-view="charges">Charges & Fees</button></li>
+          <li><button data-view="collect">Collect Payment</button></li>
+          <li><button data-view="dues">Outstanding Dues</button></li>
+          <li><button data-view="history">Payment History</button></li>
+        </ul>
+      </nav>
+      <div class="footer-note">
+        <div id="user-strip"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div class="title-block">
+          <div class="eyebrow" id="page-eyebrow">Finance</div>
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="meta" id="page-meta"></div>
+      </div>
+
+      <!-- ========== DASHBOARD ========== -->
+      <section class="view active" id="view-dashboard">
+        <div class="stat-grid" id="cash-stats"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent Payments</h3>
+            <span class="hint">Last 8 transactions</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="recent-pay-tbl">
+              <thead>
+                <tr><th>Receipt #</th><th>Student</th><th>Method</th><th class="numeric">Amount</th><th>Date</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== CHARGES & FEES ========== -->
+      <section class="view" id="view-charges">
+        <div class="card">
+          <div class="card-header">
+            <h3>Assign a One-Off Charge</h3>
+            <span class="hint">For unique per-student charges. Recurring fees go in the Misc Fees catalog below.</span>
+          </div>
+
+          <form id="charge-form">
+            <div class="form-grid">
+              <div class="field full">
+                <label for="charge-student">Student</label>
+                <select id="charge-student" required>
+                  <option value="">— Select a student —</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="charge-title">Charge Title</label>
+                <input type="text" id="charge-title" placeholder="e.g. Lost ID replacement" required />
+              </div>
+              <div class="field">
+                <label for="charge-amount">Amount</label>
+                <input type="number" id="charge-amount" min="1" step="0.01" required />
+              </div>
+              <div class="field full">
+                <label for="charge-desc">Description <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <textarea id="charge-desc" placeholder="Brief context for this charge…"></textarea>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-accent">Add Charge</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="section-title-row" id="charges-section">
+          <h2 class="section-title">All Charges</h2>
+          <button type="button"
+                  class="section-collapse-btn"
+                  id="charges-collapse-btn"
+                  aria-expanded="true"
+                  aria-controls="charges-collapsible"
+                  title="Collapse section">
+            <span class="chev" aria-hidden="true">▾</span>
+            <span class="label">Hide</span>
+          </button>
+        </div>
+        <div class="section-collapsible" id="charges-collapsible">
+          <div class="search-bar">
+            <input type="text" id="charges-search" placeholder="Filter charges by student or title…" />
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="charges-tbl">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Charge</th>
+                  <th>Source</th>
+                  <th class="numeric">Amount</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ========== MISCELLANEOUS FEES (catalog) ========== -->
+        <div class="section-divider"></div>
+
+        <h2 class="section-title">Miscellaneous Fees Catalog</h2>
+        <p class="section-sub">
+          Define fees that aren't tied to specific subjects — Registration Fee, Athletic Fee, ID, eLibrary, optional activities, penalties, etc.
+          School-wide fees auto-apply to every newly enrolled student. Grade-level fees auto-apply only to students in selected grades. Optional fees are picked per student.
+        </p>
+
+        <!-- School year banner. Lets the cashier filter the catalog view AND
+             change which year is "active" for new enrollments. -->
+        <div class="sy-banner" id="sy-banner">
+          <div class="sy-banner-row">
+            <div class="sy-banner-cell">
+              <span class="sy-lbl">Active school year</span>
+              <span class="sy-val" id="sy-active-display">—</span>
+            </div>
+            <div class="sy-banner-cell">
+              <label for="sy-filter" class="sy-lbl">Viewing</label>
+              <select id="sy-filter" class="sy-select"></select>
+            </div>
+            <div class="sy-banner-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="sy-set-active" title="Make the year you're viewing the active year for new enrollments">Make this year active</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="sy-new-year">+ Add school year</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="miscfee-form-card">
+          <div class="card-header">
+            <h3 id="miscfee-form-title">Add a Miscellaneous Fee</h3>
+            <span class="hint" id="miscfee-form-hint">Examples: Registration Fee (school-wide), Field Trip (optional), Late Payment Penalty (optional)</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="miscfee-bulk-open" style="margin-left:auto;">Bulk add by grade</button>
+          </div>
+          <form id="miscfee-form">
+            <input type="hidden" id="mf-edit-id" value="" />
+            <div class="form-grid">
+              <div class="field">
+                <label for="mf-name">Fee Name</label>
+                <input type="text" id="mf-name" placeholder="e.g. Registration Fee" required />
+              </div>
+              <div class="field">
+                <label for="mf-amount">Amount</label>
+                <input type="number" id="mf-amount" min="0" step="0.01" required />
+              </div>
+              <div class="field">
+                <label for="mf-category">Category</label>
+                <select id="mf-category" required>
+                  <option value="Registration">Registration</option>
+                  <option value="Facilities">Facilities</option>
+                  <option value="Activities">Activities</option>
+                  <option value="Materials">Materials</option>
+                  <option value="Health & Safety">Health &amp; Safety</option>
+                  <option value="Penalties">Penalties</option>
+                  <option value="Optional">Optional</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="mf-scope">Scope</label>
+                <select id="mf-scope" required>
+                  <option value="school">School-wide (auto-apply to every student)</option>
+                  <option value="grades">Specific grade levels (auto-apply to selected grades)</option>
+                  <option value="optional">Optional (pick per student)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="mf-school-year">School year</label>
+                <select id="mf-school-year" required></select>
+              </div>
+              <div class="field full" id="mf-grades-field" style="display:none;">
+                <label>Apply to grade levels</label>
+                <div class="grade-chip-picker" id="mf-grade-chips" role="group" aria-label="Grade levels for this fee">
+                  <!-- chips injected by cashier.js -->
+                </div>
+                <div class="grade-chip-actions">
+                  <button type="button" class="btn btn-ghost btn-xs" id="mf-grades-all">Select all</button>
+                  <button type="button" class="btn btn-ghost btn-xs" id="mf-grades-none">Clear</button>
+                  <span class="grade-chip-hint" id="mf-grades-count">0 selected</span>
+                </div>
+              </div>
+              <div class="field full">
+                <label for="mf-desc">Description <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <textarea id="mf-desc" placeholder="What this fee covers…"></textarea>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="mf-cancel-edit" style="display:none;">Cancel edit</button>
+              <button type="reset" class="btn btn-ghost" id="mf-clear">Clear</button>
+              <button type="submit" class="btn btn-primary" id="mf-submit">Add Fee</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="search-bar">
+          <input type="text" id="mf-search" placeholder="Filter fees by name, category, scope, or grade…" />
+        </div>
+
+        <div class="miscfee-grid" id="miscfees-list"></div>
+      </section>
+
+      <!-- ========== COLLECT ========== -->
+      <section class="view" id="view-collect">
+        <div class="card">
+          <div class="card-header">
+            <h3>Process Payment</h3>
+            <span class="hint">Step 1 — Select student</span>
+          </div>
+          <div class="field full" style="margin-bottom: 18px;">
+            <label for="pay-student">Student</label>
+            <select id="pay-student">
+              <option value="">— Select a student with charges —</option>
+            </select>
+          </div>
+
+          <div id="pay-summary" class="pay-summary" style="display:none;"></div>
+
+          <form id="pay-form" style="display:none;">
+            <h4 class="sub-h">Step 2 — Choose charges to settle</h4>
+            <div id="charge-checklist" class="charge-checklist"></div>
+
+            <h4 class="sub-h" style="margin-top:24px;">Step 3 — Apply discount <span style="font-size:0.78rem; color:var(--ink-500); font-weight:400; margin-left:6px;">(optional)</span></h4>
+            <div class="discount-block">
+              <div class="discount-row">
+                <div class="discount-toggle" role="radiogroup" aria-label="Discount type">
+                  <label class="seg-opt">
+                    <input type="radio" name="disc-type" value="none" checked />
+                    <span>None</span>
+                  </label>
+                  <label class="seg-opt">
+                    <input type="radio" name="disc-type" value="percent" />
+                    <span>Percent</span>
+                  </label>
+                  <label class="seg-opt">
+                    <input type="radio" name="disc-type" value="amount" />
+                    <span>Amount</span>
+                  </label>
+                </div>
+                <div class="field discount-input-wrap" id="disc-percent-wrap" style="display:none;">
+                  <label for="disc-percent">Discount %</label>
+                  <input type="number" id="disc-percent" min="0" max="100" step="0.01" placeholder="e.g. 10" />
+                </div>
+                <div class="field discount-input-wrap" id="disc-amount-wrap" style="display:none;">
+                  <label for="disc-amount">Discount amount</label>
+                  <input type="number" id="disc-amount" min="0" step="0.01" placeholder="e.g. 200" />
+                </div>
+                <div class="field discount-input-wrap" id="disc-label-wrap" style="display:none;">
+                  <label for="disc-label">Reason / Label</label>
+                  <input type="text" id="disc-label" placeholder="e.g. Sibling, Senior, Promo" />
+                </div>
+              </div>
+            </div>
+
+            <h4 class="sub-h" style="margin-top:24px;">Step 4 — Payment details</h4>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pay-method">Method</label>
+                <select id="pay-method" required>
+                  <option value="">— Select —</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="GCash">GCash</option>
+                  <option value="Check">Check</option>
+                  <option value="Card">Card</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="pay-reference">Reference Number <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
+                <input type="text" id="pay-reference" placeholder="OR / transaction #" />
+              </div>
+              <div class="field">
+                <label for="pay-receivedBy">Received By</label>
+                <input type="text" id="pay-receivedBy" placeholder="Cashier name" required />
+              </div>
+              <div class="field">
+                <label>Payment Breakdown</label>
+                <div id="pay-breakdown" class="pay-breakdown">
+                  <div class="row"><span>Charges selected</span><span id="pay-charges-total">₱0.00</span></div>
+                  <div class="row" id="pay-discount-row" style="display:none;">
+                    <span id="pay-discount-label">Discount</span>
+                    <span id="pay-discount-val" class="discount">−₱0.00</span>
+                  </div>
+                  <div class="row total"><span>Cash to receive</span><span id="pay-total">₱0.00</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="reset" class="btn btn-ghost">Clear</button>
+              <button type="submit" class="btn btn-accent">Record Payment</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ========== DUES ========== -->
+      <section class="view" id="view-dues">
+        <div class="search-bar">
+          <input type="text" id="dues-search" placeholder="Search students with outstanding balances…" />
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="dues-tbl">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Grade</th>
+                <th class="numeric">Total Charges</th>
+                <th class="numeric">Paid</th>
+                <th class="numeric">Outstanding</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ========== HISTORY ========== -->
+      <section class="view" id="view-history">
+        <div class="search-bar">
+          <input type="text" id="hist-search" placeholder="Search by student or method…" />
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="hist-tbl">
+            <thead>
+              <tr>
+                <th>Receipt #</th>
+                <th>Student</th>
+                <th>Method</th>
+                <th>Reference</th>
+                <th>Received By</th>
+                <th class="numeric">Amount</th>
+                <th>Date</th>
+                <th class="actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Receipt Modal -->
+  <div class="modal-backdrop" id="receipt-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Payment Receipt</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body" id="receipt-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal>Close</button>
+        <button class="btn btn-primary" onclick="window.print()">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apply Optional Fee modal -->
+  <div class="modal-backdrop" id="applyfee-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="af-title">Apply Optional Fee</h3>
+        <button class="modal-close" data-close-applyfee>×</button>
+      </div>
+      <div class="modal-body">
+        <p id="af-info" style="font-size:0.88rem; color:var(--ink-500); margin-bottom:14px;"></p>
+        <div class="field">
+          <label for="af-student">Apply to student</label>
+          <select id="af-student">
+            <option value="">— Select a student —</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-applyfee>Cancel</button>
+        <button class="btn btn-primary" id="af-submit">Apply Fee</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Add Per-Grade Fees modal.
+       Lets the cashier define one fee name + category once and set a per-grade
+       amount for any subset of grade levels. Each selected grade with a
+       non-empty amount becomes a separate grade-targeted fee on submit. -->
+  <div class="modal-backdrop" id="bulkfee-modal">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3>Bulk Add Per-Grade Fees</h3>
+        <button class="modal-close" data-close-bulkfee>×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.88rem; color:var(--ink-500); margin-bottom:14px;">
+          Enter a fee name (e.g. <em>Tuition</em>) and a per-grade amount. Leave a row blank or unchecked to skip that grade. Each row creates a separate grade-targeted fee, so the same name can sit alongside fees for other grades.
+        </p>
+        <div class="form-grid" style="margin-bottom:14px;">
+          <div class="field">
+            <label for="bf-name">Fee name</label>
+            <input type="text" id="bf-name" placeholder="e.g. Tuition" required />
+          </div>
+          <div class="field">
+            <label for="bf-category">Category</label>
+            <select id="bf-category" required>
+              <option value="Registration">Registration</option>
+              <option value="Facilities">Facilities</option>
+              <option value="Activities">Activities</option>
+              <option value="Materials">Materials</option>
+              <option value="Health & Safety">Health &amp; Safety</option>
+              <option value="Penalties">Penalties</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="bf-school-year">School year</label>
+            <select id="bf-school-year" required></select>
+          </div>
+          <div class="field full">
+            <label for="bf-desc">Description <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional, applied to every row)</span></label>
+            <input type="text" id="bf-desc" placeholder="Annual tuition" />
+          </div>
+        </div>
+        <div class="bulkfee-rows" id="bf-rows"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-bulkfee>Cancel</button>
+        <button type="button" class="btn btn-primary" id="bf-submit">Create fees</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Void Payment modal -->
+  <div class="modal-backdrop" id="void-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Void Payment</h3>
+        <button class="modal-close" data-close-void>×</button>
+      </div>
+      <div class="modal-body">
+        <div id="void-info" class="void-info"></div>
+        <p style="font-size:0.88rem; color:var(--ink-500); margin: 12px 0 14px;">
+          Voiding marks the payment as reversed. The payment record stays in history for audit purposes. Charges that this payment settled will return to <strong>unpaid</strong>.
+        </p>
+        <div class="field">
+          <label for="void-reason">Reason</label>
+          <input type="text" id="void-reason" placeholder="e.g. Wrong student, duplicate entry" required />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-void>Cancel</button>
+        <button type="button" class="btn btn-danger" id="void-submit">Void payment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New School Year modal (small) -->
+  <div class="modal-backdrop" id="sy-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add School Year</h3>
+        <button class="modal-close" data-close-sy>×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.88rem; color:var(--ink-500); margin-bottom:14px;">
+          Adds a school year to the dropdowns. Use this before defining fees for the next year. Format: <code>YYYY-YYYY</code>.
+        </p>
+        <div class="field">
+          <label for="sy-new-input">School year</label>
+          <input type="text" id="sy-new-input" placeholder="e.g. 2026-2027" pattern="\d{4}-\d{4}" />
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:0.88rem;">
+          <input type="checkbox" id="sy-new-make-active" />
+          <span>Also make this the active year for new enrollments</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-sy>Cancel</button>
+        <button type="button" class="btn btn-primary" id="sy-new-submit">Add year</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../shared/config.js"></script>
+  <script src="../../shared/utils.js"></script>
+  <script src="../../shared/api.js"></script>
+  <script src="../../shared/storage.js"></script>
+  <script src="../../shared/auth.js"></script>
+  <script src="../../shared/logo.js"></script>
+
+  <script>
+    HLC_STORAGE.bootstrap()
+      .then(() => {
+        const s = document.createElement('script');
+        s.src = 'cashier.js';
+        s.onload = () => document.dispatchEvent(new Event('DOMContentLoaded'));
+        document.body.appendChild(s);
+      })
+      .catch(err => {
+        document.body.innerHTML =
+          '<div style="padding:40px;text-align:center;font-family:Inter,sans-serif;">' +
+            '<h1 style="color:#8a1a1a;">Couldn&rsquo;t load data</h1>' +
+            '<p>' + (err && err.message ? err.message : 'Unknown error') + '</p>' +
+            '<p><a href="../../auth.html">Sign in again</a></p>' +
+          '</div>';
+      });
+  </script>
+</body>
+</html>

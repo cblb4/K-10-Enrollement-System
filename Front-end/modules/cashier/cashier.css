@@ -1,0 +1,181 @@
+.sub-h {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  font-size: 1.05rem;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.pay-summary {
+  background: var(--maroon-50);
+  border-left: 3px solid var(--maroon-700);
+  padding: 14px 18px;
+  border-radius: 3px;
+  margin-bottom: 20px;
+}
+.pay-summary .name {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+}
+.pay-summary .meta {
+  font-size: 0.82rem;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+.pay-summary .totals {
+  display: flex;
+  gap: 24px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(125, 38, 41, 0.15);
+}
+.pay-summary .totals .item .lbl {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  font-weight: 600;
+}
+.pay-summary .totals .item .val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--maroon-900);
+  font-size: 1.05rem;
+}
+
+.charge-checklist {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+}
+.check-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 12px;
+  padding: 10px 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background .15s var(--ease);
+}
+.check-row:last-child { border-bottom: none; }
+.check-row:hover { background: #fff; }
+.check-row input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--maroon-800);
+  cursor: pointer;
+}
+.check-row .ttl { font-weight: 500; color: var(--ink-900); }
+.check-row .desc { font-size: 0.78rem; color: var(--ink-500); margin-top: 2px; }
+.check-row .amt {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--maroon-800);
+}
+.check-row.paid { opacity: 0.55; cursor: not-allowed; }
+
+.total-display {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--maroon-900);
+  padding: 8px 12px;
+  background: var(--gold-100);
+  border: 1px solid var(--gold-500);
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Receipt */
+#receipt-body .rcpt-hdr {
+  text-align: center;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--line-strong);
+}
+#receipt-body .rcpt-hdr .school {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+}
+#receipt-body .rcpt-hdr .sub {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#receipt-body .rcpt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 18px;
+  margin-bottom: 18px;
+  font-size: 0.88rem;
+}
+#receipt-body .rcpt-grid .lbl { color: var(--ink-500); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; }
+#receipt-body .rcpt-grid .val { font-weight: 500; color: var(--ink-900); }
+#receipt-body .rcpt-items {
+  border-top: 1px dashed var(--line-strong);
+  border-bottom: 1px dashed var(--line-strong);
+  padding: 10px 0;
+  margin-bottom: 14px;
+}
+#receipt-body .rcpt-items .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  padding: 4px 0;
+}
+#receipt-body .rcpt-total {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+  padding-top: 8px;
+}
+
+@media print {
+  body * { visibility: hidden; }
+  #receipt-modal, #receipt-modal * { visibility: visible; }
+  #receipt-modal { position: absolute; left: 0; top: 0; background: #fff; }
+  .modal-footer, .modal-close { display: none !important; }
+}
+
+/* ===== Carry-over balances (from promotions) ===== */
+
+/* Group labels inside the charge checklist (Collect Payment view) */
+.charge-checklist .checklist-group-label {
+  padding: 8px 14px;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  font-weight: 600;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.charge-checklist .checklist-group-label.carry {
+  color: var(--maroon-900);
+  background: var(--maroon-50);
+  border-left: 3px solid var(--maroon-700);
+}
+
+/* Carry-over rows are subtly tinted so the cashier sees the term boundary */
+.charge-checklist .check-row.check-row-carry {
+  background: rgba(125, 38, 41, 0.025);
+}
+.charge-checklist .check-row.check-row-carry .ttl::before {
+  content: '↺ ';
+  color: var(--maroon-700);
+  font-weight: 600;
+}
+
+/* Charges & Fees table: gentle tint for carry-over rows */
+.tbl tr.row-carry td {
+  background: rgba(125, 38, 41, 0.025);
+}

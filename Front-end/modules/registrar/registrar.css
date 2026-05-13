@@ -1,0 +1,146 @@
+/* Registrar-specific styles
+   Most styling lives in shared.css; this file only adds module-specific touches.
+*/
+
+#recent-enrollments .recent-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+#recent-enrollments .recent-row:last-child { border-bottom: none; }
+#recent-enrollments .recent-row .name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--maroon-900);
+  font-weight: 600;
+}
+#recent-enrollments .recent-row .grade {
+  font-size: 0.82rem;
+  color: var(--ink-500);
+}
+#recent-enrollments .recent-row .when {
+  font-size: 0.78rem;
+  color: var(--ink-300);
+  font-variant-numeric: tabular-nums;
+}
+
+#sm-body .detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+  margin-bottom: 20px;
+}
+#sm-body .detail-grid .lbl {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+#sm-body .detail-grid .val {
+  font-size: 0.95rem;
+  color: var(--ink-900);
+}
+#sm-body .charges-mini {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+#sm-body .charges-mini h4 {
+  font-family: var(--font-display);
+  color: var(--maroon-900);
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+#sm-body .charge-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+  font-size: 0.88rem;
+}
+#sm-body .charge-row:last-child { border-bottom: none; }
+#sm-body .charge-row .charge-title {
+  font-weight: 500;
+  color: var(--ink-900);
+}
+#sm-body .charge-row .charge-desc {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+#sm-body .charge-row .charge-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--maroon-800);
+}
+
+/* ===== Student GSA (academic side, no amounts) ===== */
+
+/* Lines without an amount cell — collapse the right column so labels span full width. */
+.gsa-rich-section .gsa-line.gsa-line-academic {
+  grid-template-columns: 1fr;
+}
+
+/* The subtotal slot in section headers shows an item count instead of money,
+   so de-emphasize it relative to the financial styling. */
+.gsa-rich-section h5 .subtotal.subtotal-count {
+  font-variant-numeric: normal;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  letter-spacing: 0.04em;
+}
+
+/* Charges-mini in the student detail modal: academic-only rows have no
+   amount/status columns, so single-column layout is cleaner. */
+.charges-mini .charge-group-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-500);
+  margin: 12px 0 4px 0;
+  font-weight: 600;
+}
+.charges-mini .charge-group-label:first-child { margin-top: 4px; }
+
+.charges-mini .charge-row.charge-row-academic {
+  display: block;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ink-100);
+}
+.charges-mini .charge-row.charge-row-academic:last-child { border-bottom: none; }
+
+/* ===== Carry-over section in the academic GSA ===== */
+
+.gsa-rich-section.gsa-carry-section {
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 14px;
+  margin-top: 6px;
+}
+.gsa-rich-section.gsa-carry-section h5 {
+  color: var(--maroon-900);
+}
+.gsa-carry-group-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  margin: 8px 0 4px 0;
+  font-weight: 600;
+}
+.gsa-line.gsa-line-carry {
+  opacity: 0.85;
+}
+.gsa-line.gsa-line-carry .lbl::before {
+  content: '↺ ';
+  color: var(--maroon-700);
+  font-weight: 600;
+}
