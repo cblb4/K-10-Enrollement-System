@@ -2,9 +2,18 @@
 -- Heartworks Learning Center — Enrollment System
 -- Initial schema (migration 001)
 -- ==========================================================================
--- Run with:    mysql -u <user> -p <database> < migrations/001_init.sql
+-- Run with:    mysql -u <user> -p < migrations/001_init.sql
 -- Or via the migrate script:    npm run migrate
+--
+-- The script creates the `hlc_enrollment` database if it doesn't already
+-- exist, then runs every CREATE TABLE inside it. Safe to re-run.
 -- ==========================================================================
+
+CREATE DATABASE IF NOT EXISTS hlc_enrollment
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE hlc_enrollment;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
