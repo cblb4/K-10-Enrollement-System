@@ -24,6 +24,7 @@
           <li><button data-view="dashboard" class="active">Dashboard</button></li>
           <li><button data-view="enroll">New Enrollment</button></li>
           <li><button data-view="students">Student Records</button></li>
+          <li><button data-view="schoolyear">School Years</button></li>
           <li><button data-view="gsa">Student GSA</button></li>
           <li><button data-view="subjects">Subjects</button></li>
           <li><button data-view="import">Bulk Import</button></li>
@@ -56,63 +57,232 @@
       </section>
 
       <!-- ========== NEW ENROLLMENT ========== -->
+      <!-- Rebuilt to mirror the public online form (enroll.html): same 7
+           sections, same fields, same conditional logic. A registrar-side
+           submission is auto-approved (staff are trusted); it posts to the
+           shared /api/online-enrollment/submit endpoint so guardians and
+           documents are handled identically to online submissions. -->
       <section class="view" id="view-enroll">
         <div class="card">
           <div class="card-header">
             <h3>Enroll a New Student</h3>
-            <span class="hint">All fields required unless noted</span>
+            <span class="hint">Fields marked * are required</span>
           </div>
 
-          <form id="enroll-form">
-            <div class="form-grid">
-              <div class="field">
-                <label for="firstName">First Name</label>
-                <input type="text" id="firstName" name="firstName" required />
+          <div id="enroll-error" class="enroll-error"></div>
+
+          <form id="enroll-form" novalidate>
+
+            <!-- 1. Enrollment Information -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">1</span> Enrollment Information</legend>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="enrollmentDate">Enrollment Date *</label>
+                  <input type="date" id="enrollmentDate" name="enrollmentDate" required />
+                </div>
+                <div class="field">
+                  <label for="schoolYear">School Year *</label>
+                  <select id="schoolYear" name="schoolYear" required>
+                    <!-- Populated by registrar.js from the managed list;
+                         the active school year is preselected. -->
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="program">Program *</label>
+                  <select id="program" name="program" required>
+                    <option value="">— Select —</option>
+                    <option>Pre-School</option>
+                    <option>Elementary</option>
+                    <option>Junior High School</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="gradeLevel">Grade Level *</label>
+                  <select id="gradeLevel" name="gradeLevel" required>
+                    <option value="">— Select —</option>
+                  </select>
+                </div>
               </div>
-              <div class="field">
-                <label for="lastName">Last Name</label>
-                <input type="text" id="lastName" name="lastName" required />
+            </fieldset>
+
+            <!-- 2. Learner's Information -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">2</span> Learner's Information</legend>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="l_lastName">Last Name *</label>
+                  <input type="text" id="l_lastName" maxlength="100" required />
+                </div>
+                <div class="field">
+                  <label for="l_firstName">First Name *</label>
+                  <input type="text" id="l_firstName" maxlength="100" required />
+                </div>
+                <div class="field">
+                  <label for="l_middleName">Middle Name <span class="opt">(optional)</span></label>
+                  <input type="text" id="l_middleName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="l_birthDate">Date of Birth *</label>
+                  <input type="date" id="l_birthDate" required />
+                </div>
+                <div class="field">
+                  <label for="l_age">Age</label>
+                  <input type="number" id="l_age" readonly placeholder="—" />
+                </div>
+                <div class="field">
+                  <label for="l_gender">Gender *</label>
+                  <select id="l_gender" required>
+                    <option value="">— Select —</option>
+                    <option>Male</option><option>Female</option><option>Other</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label for="l_school">School Last Attended <span class="opt">(optional)</span></label>
+                  <input type="text" id="l_school" maxlength="200" placeholder="Previous school name" />
+                </div>
               </div>
-              <div class="field">
-                <label for="middleName">Middle Name <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
-                <input type="text" id="middleName" name="middleName" />
+            </fieldset>
+
+            <!-- 3. Other Information -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">3</span> Other Information</legend>
+              <div class="form-grid">
+                <div class="field full toggle-field">
+                  <label class="switch">
+                    <input type="checkbox" id="shuttleService" />
+                    <span class="slider"></span>
+                  </label>
+                  <span>Learner will use the school <strong>Shuttle Service</strong></span>
+                </div>
+                <div class="conditional-block full" id="shuttleFields" hidden>
+                  <div class="field">
+                    <label for="carpoolService">Carpool Service *</label>
+                    <select id="carpoolService">
+                      <option value="">— Select —</option>
+                      <option value="none">Round Trip (not one-way)</option>
+                      <option value="morning">One-Way — Morning only</option>
+                      <option value="afternoon">One-Way — Afternoon only</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field full toggle-field">
+                  <label class="switch">
+                    <input type="checkbox" id="escGrantee" />
+                    <span class="slider"></span>
+                  </label>
+                  <span>Learner is an <strong>ESC Grantee</strong>
+                    (Educational Service Contracting)</span>
+                </div>
               </div>
-              <div class="field">
-                <label for="birthDate">Date of Birth</label>
-                <input type="date" id="birthDate" name="birthDate" required />
+            </fieldset>
+
+            <!-- 4. Father's Information -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">4</span> Father's Information</legend>
+              <p class="hint" style="margin-bottom:12px">Provide at least one
+                parent (father or mother). Leave blank if not applicable.</p>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="f_lastName">Last Name</label>
+                  <input type="text" id="f_lastName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="f_firstName">First Name</label>
+                  <input type="text" id="f_firstName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="f_middleName">Middle Name <span class="opt">(optional)</span></label>
+                  <input type="text" id="f_middleName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="f_religion">Religion <span class="opt">(optional)</span></label>
+                  <input type="text" id="f_religion" maxlength="100" />
+                </div>
+                <div class="field full">
+                  <label for="f_address">Home Address</label>
+                  <textarea id="f_address"></textarea>
+                </div>
+                <div class="field">
+                  <label for="f_mobile">Mobile Number</label>
+                  <input type="tel" id="f_mobile" maxlength="50" placeholder="09XX XXX XXXX" />
+                </div>
+                <div class="field">
+                  <label for="f_tel">Telephone Number <span class="opt">(optional)</span></label>
+                  <input type="tel" id="f_tel" maxlength="50" />
+                </div>
               </div>
-              <div class="field">
-                <label for="gender">Gender</label>
-                <select id="gender" name="gender" required>
-                  <option value="">— Select —</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+            </fieldset>
+
+            <!-- 5. Mother's Information -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">5</span> Mother's Information</legend>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="m_lastName">Last Name</label>
+                  <input type="text" id="m_lastName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="m_firstName">First Name</label>
+                  <input type="text" id="m_firstName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="m_middleName">Middle Name <span class="opt">(optional)</span></label>
+                  <input type="text" id="m_middleName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="m_religion">Religion <span class="opt">(optional)</span></label>
+                  <input type="text" id="m_religion" maxlength="100" />
+                </div>
+                <div class="field full">
+                  <label for="m_address">Home Address</label>
+                  <textarea id="m_address"></textarea>
+                </div>
+                <div class="field">
+                  <label for="m_mobile">Mobile Number</label>
+                  <input type="tel" id="m_mobile" maxlength="50" placeholder="09XX XXX XXXX" />
+                </div>
+                <div class="field">
+                  <label for="m_tel">Telephone Number <span class="opt">(optional)</span></label>
+                  <input type="tel" id="m_tel" maxlength="50" />
+                </div>
               </div>
-              <div class="field">
-                <label for="gradeLevel">Grade Level</label>
-                <select id="gradeLevel" name="gradeLevel" required>
-                  <option value="">— Select —</option>
-                </select>
+            </fieldset>
+
+            <!-- 6. Emergency Contact -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">6</span> Emergency Contact Information</legend>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="e_fullName">Full Name *</label>
+                  <input type="text" id="e_fullName" maxlength="200" required />
+                </div>
+                <div class="field">
+                  <label for="e_relationship">Relationship to Learner *</label>
+                  <input type="text" id="e_relationship" maxlength="100"
+                         placeholder="e.g. Aunt, Guardian" required />
+                </div>
+                <div class="field">
+                  <label for="e_mobile">Mobile Number *</label>
+                  <input type="tel" id="e_mobile" maxlength="50"
+                         placeholder="09XX XXX XXXX" required />
+                </div>
+                <div class="field full">
+                  <label for="e_address">Home Address *</label>
+                  <textarea id="e_address" required></textarea>
+                </div>
               </div>
-              <div class="field">
-                <label for="guardianName">Parent / Guardian</label>
-                <input type="text" id="guardianName" name="guardianName" required />
-              </div>
-              <div class="field">
-                <label for="contact">Contact Number</label>
-                <input type="tel" id="contact" name="contact" required />
-              </div>
-              <div class="field full">
-                <label for="address">Home Address</label>
-                <input type="text" id="address" name="address" required />
-              </div>
-              <div class="field full">
-                <label for="notes">Notes <span style="text-transform:none;font-weight:400;color:var(--ink-300);">(optional)</span></label>
-                <textarea id="notes" name="notes" placeholder="Special considerations, prior school, etc."></textarea>
-              </div>
-            </div>
+            </fieldset>
+
+            <!-- 7. Required Documents -->
+            <fieldset class="enroll-fs">
+              <legend><span class="fs-n">7</span> Required Documents</legend>
+              <p class="hint" style="margin-bottom:12px">Upload a clear PDF or
+                photo (max 8&nbsp;MB each). Documents are optional here and may
+                be added later.</p>
+              <div class="docs-grid" id="enroll-docs"><!-- tiles via JS --></div>
+            </fieldset>
+
             <div class="form-actions">
               <button type="reset" class="btn btn-ghost">Clear</button>
               <button type="submit" class="btn btn-primary">Submit Enrollment</button>
@@ -124,7 +294,7 @@
       <!-- ========== STUDENT RECORDS ========== -->
       <section class="view" id="view-students">
         <div class="search-bar">
-          <input type="text" id="students-search" placeholder="Search by name, grade, or status…" />
+          <input type="text" id="students-search" placeholder="Search by name, grade, program, or status…" />
         </div>
         <div class="tbl-wrap">
           <table class="tbl" id="students-tbl">
@@ -132,6 +302,7 @@
               <tr>
                 <th>Student</th>
                 <th>Grade</th>
+                <th>Program</th>
                 <th>Guardian</th>
                 <th>Status</th>
                 <th>Enrolled</th>
@@ -143,7 +314,47 @@
         </div>
       </section>
 
-      <!-- ========== STUDENT GSA — academic schedule & assessment ========== -->
+      <!-- ========== SCHOOL YEARS ========== -->
+      <!-- Manages the centrally-stored school-year list and the single
+           active school year. The active SY is persisted in app_settings
+           on the backend, so every module (enrollment, cashier, etc.)
+           reads the same value. -->
+      <section class="view" id="view-schoolyear">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <h3>School Year Management</h3>
+            <span class="hint">The active year is the system-wide default</span>
+          </div>
+          <div class="sy-active-banner" id="sy-active-banner">
+            Active School Year: <strong id="sy-active-label">—</strong>
+          </div>
+          <form id="sy-add-form" class="sy-add-form">
+            <div class="field">
+              <label for="sy-input">Add a School Year</label>
+              <input type="text" id="sy-input" placeholder="e.g. 2026-2027"
+                     maxlength="20" />
+            </div>
+            <button type="submit" class="btn btn-primary">Add School Year</button>
+          </form>
+          <p class="hint" id="sy-add-hint">Format: YYYY-YYYY (consecutive years).</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>All School Years</h3></div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="sy-tbl">
+              <thead>
+                <tr>
+                  <th>School Year</th>
+                  <th>Status</th>
+                  <th class="actions">Action</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       <section class="view" id="view-gsa">
         <div class="card" style="margin-bottom:18px;">
           <div class="card-header">
@@ -156,7 +367,7 @@
         </div>
         <div class="gsa-controls">
           <div class="search-bar" style="margin-bottom:0; flex:1;">
-            <input type="text" id="gsa-search" placeholder="Search by name, grade, or status…" />
+            <input type="text" id="gsa-search" placeholder="Search by name, grade, program, or status…" />
           </div>
           <div class="gsa-bulk-toggle">
             <button type="button" class="btn btn-ghost btn-sm" id="gsa-expand-all">Expand all</button>

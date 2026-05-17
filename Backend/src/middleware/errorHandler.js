@@ -42,6 +42,23 @@ function errorHandler(err, req, res, _next) {
     return res.status(400).json({ error: 'Malformed JSON body' });
   }
 
+  // Multer upload errors (file too large, too many files, bad field).
+  if (err && err.name === 'MulterError') {
+    const MULTER_MSG = {
+      LIMIT_FILE_SIZE:   'A file exceeds the 8 MB upload limit.',
+      LIMIT_FILE_COUNT:  'Too many files in one request (max 8).',
+      LIMIT_UNEXPECTED_FILE: 'Unexpected file field in the upload.'
+    };
+    return res.status(400).json({
+      error: MULTER_MSG[err.code] || 'File upload failed.'
+    });
+  }
+
+  // fileFilter rejections surface as a plain Error from multer.
+  if (err && err.message === 'Only PDF or image files are allowed') {
+    return res.status(400).json({ error: err.message });
+  }
+
   // Anything else is unexpected — log it, send a generic message.
   // eslint-disable-next-line no-console
   console.error('[unhandled]', err);

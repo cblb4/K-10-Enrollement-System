@@ -430,3 +430,17 @@
   font-weight: 600;
   font-family: var(--font-body);
 }
+
+/* ── Analytics toolbar — school-year filter on the Information view ───── */
+.analytics-toolbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--maroon-50,#fbf5f5);border:1px solid var(--line,#e5dccd);
+  border-radius:8px;padding:11px 15px;margin-bottom:16px;
+}
+.analytics-toolbar label{font-size:0.85rem;font-weight:600;color:var(--ink-700,#3d342f);}
+.analytics-toolbar select{
+  font-family:inherit;font-size:0.88rem;padding:6px 10px;
+  border:1px solid var(--line-strong,#c9bca8);border-radius:6px;
+  background:#fff;color:var(--ink-900,#1a1614);
+}
+.analytics-toolbar .hint{margin-left:auto;font-size:0.82rem;color:var(--ink-500,#6b5e54);}

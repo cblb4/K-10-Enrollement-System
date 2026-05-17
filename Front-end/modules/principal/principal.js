@@ -14,7 +14,7 @@
   const me = window.HLC_AUTH.requireRole('principal', '../../auth.html');
   if (!me) return;
 
-  const { Students, Payments, Sections } = window.HLC_STORAGE;
+  const { Students, Payments, Sections, getActiveSchoolYear } = window.HLC_STORAGE;
   const U = window.HLC_UTILS;
   const CFG = window.HLC_CONFIG;
   const $ = U.$, $$ = U.$$;
@@ -152,22 +152,72 @@
   // ============================================================
   // LAYER 2 — INFORMATION: aggregated metrics
   // ============================================================
+  // Tracks the Information view's school-year filter ('all' or a specific SY).
+  let infoSchoolYear = 'all';
+
+  // Build the list of school years present in the data, for the filter.
+  function schoolYearsInData() {
+    const set = new Set();
+    Students.getAll().forEach(s => { if (s.schoolYear) set.add(s.schoolYear); });
+    const active = getActiveSchoolYear && getActiveSchoolYear();
+    if (active) set.add(active);
+    return Array.from(set).sort();
+  }
+
+  function initInformationFilter() {
+    const sel = $('#info-sy-filter');
+    if (!sel) return;
+    // Preserve the "All" option, append discovered years.
+    schoolYearsInData().forEach(sy => {
+      sel.appendChild(U.el('option', { value: sy }, sy));
+    });
+    // Default the filter to the active school year if it exists in the data.
+    const active = getActiveSchoolYear && getActiveSchoolYear();
+    if (active && schoolYearsInData().indexOf(active) !== -1) {
+      sel.value = active;
+      infoSchoolYear = active;
+    }
+    sel.addEventListener('change', () => {
+      infoSchoolYear = sel.value;
+      renderInformation();
+    });
+  }
+
   function renderInformation() {
-    const students = Students.getAll();
-    const payments = Payments.getAll();
+    // Scope the dataset by the selected school year.
+    const allStudents = Students.getAll();
+    const students = infoSchoolYear === 'all'
+      ? allStudents
+      : allStudents.filter(s => s.schoolYear === infoSchoolYear);
+    const studentIds = new Set(students.map(s => s.id));
+    const payments = Payments.getAll().filter(p =>
+      infoSchoolYear === 'all' ? true
+        : (p.schoolYear === infoSchoolYear || studentIds.has(p.studentId)));
+
+    const hint = $('#info-sy-hint');
+    if (hint) {
+      hint.textContent = infoSchoolYear === 'all'
+        ? `Showing all ${allStudents.length} students`
+        : `Showing ${students.length} student(s) for ${infoSchoolYear}`;
+    }
 
     const totalCharges  = students.reduce((s, st) => s + U.sumCharges(st), 0);
     const totalPaid     = payments.reduce((s, p) => s + p.amount, 0);
     const totalStudents = students.length;
     const avgPerStudent = totalStudents ? totalCharges / totalStudents : 0;
+    const collectionRate = totalCharges > 0
+      ? Math.round((totalPaid / totalCharges) * 100) : 0;
+    const outstanding = Math.max(0, totalCharges - totalPaid);
 
     const stats = $('#info-stats');
     U.clearNode(stats);
     [
-      { label: 'Total Students', value: String(totalStudents) },
-      { label: 'Total Charges',  value: U.formatCurrency(totalCharges) },
-      { label: 'Total Payments', value: U.formatCurrency(totalPaid), gold: true },
-      { label: 'Avg / Student',  value: U.formatCurrency(avgPerStudent) }
+      { label: 'Total Students',  value: String(totalStudents) },
+      { label: 'Total Charges',   value: U.formatCurrency(totalCharges) },
+      { label: 'Total Payments',  value: U.formatCurrency(totalPaid), gold: true },
+      { label: 'Outstanding',     value: U.formatCurrency(outstanding) },
+      { label: 'Collection Rate', value: collectionRate + '%' },
+      { label: 'Avg / Student',   value: U.formatCurrency(avgPerStudent) }
     ].forEach(t => {
       stats.appendChild(U.el('div', { class: 'stat' + (t.gold ? ' gold' : '') }, [
         U.el('div', { class: 'label' }, t.label),
@@ -211,6 +261,23 @@
         U.el('div', { class: 'num' }, U.formatCurrency(paid))
       ]));
     });
+
+    // Enrollment-by-status chart (new).
+    const sc = $('#info-status-chart');
+    if (sc) {
+      U.clearNode(sc);
+      const STATUSES = ['pending', 'approved', 'enrolled', 'rejected'];
+      const byStatus = U.groupBy(students, s => s.status);
+      const statusMax = Math.max(1, ...STATUSES.map(st => (byStatus[st] || []).length));
+      STATUSES.forEach(st => {
+        const count = (byStatus[st] || []).length;
+        sc.appendChild(U.el('div', { class: 'bar-row' }, [
+          U.el('div', { class: 'lbl' }, st.charAt(0).toUpperCase() + st.slice(1)),
+          U.el('div', { class: 'bar-track' }, [U.el('div', { class: 'bar-fill', style: `width:${(count/statusMax)*100}%;` })]),
+          U.el('div', { class: 'num' }, String(count))
+        ]));
+      });
+    }
   }
 
   // ============================================================
@@ -837,6 +904,7 @@
   function init() {
     $('#page-meta').textContent = U.formatDateTime(new Date().toISOString());
     $$('.nav-list button').forEach(btn => btn.addEventListener('click', () => setActiveView(btn.dataset.view)));
+    initInformationFilter();
     renderData();
   }
 

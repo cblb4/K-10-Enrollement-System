@@ -144,3 +144,99 @@
   color: var(--maroon-700);
   font-weight: 600;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Online-style enrollment form — added for the rebuilt New Enrollment view.
+   Mirrors the 7-section structure of the public enroll.html form.
+   ══════════════════════════════════════════════════════════════════════ */
+.enroll-fs{
+  border:1px solid var(--line);border-radius:9px;
+  padding:18px 20px 4px;margin-bottom:18px;background:var(--paper,#faf7f2);
+}
+.enroll-fs legend{
+  font-family:var(--font-display,serif);font-weight:700;font-size:18px;
+  color:var(--maroon-700,#6b1f23);padding:0 10px;
+  display:flex;align-items:center;gap:8px;
+}
+.enroll-fs .fs-n{
+  font-family:var(--font-body,sans-serif);font-size:11px;font-weight:600;
+  background:var(--maroon-700,#6b1f23);color:#fff;
+  width:20px;height:20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+}
+.enroll-fs .opt{
+  text-transform:none;font-weight:400;color:var(--ink-300,#a89a8d);font-size:11px;
+}
+#enroll-form textarea{
+  font-family:var(--font-body,sans-serif);font-size:14px;
+  border:1px solid var(--line-strong,#c9bca8);border-radius:7px;
+  padding:9px 11px;background:var(--paper,#faf7f2);resize:vertical;min-height:58px;
+}
+#l_age{background:var(--paper-2,#f3eee5);color:var(--ink-500,#6b5e54);}
+/* error banner */
+.enroll-error{
+  display:none;background:var(--danger-bg,#f8d7da);color:var(--danger,#842029);
+  border:1px solid #e9b9bd;border-radius:8px;padding:10px 13px;
+  font-size:13px;margin-bottom:16px;
+}
+.enroll-error.show{display:block;}
+/* Yes/No toggle */
+.toggle-field{flex-direction:row;align-items:center;gap:11px;}
+.switch{position:relative;width:44px;height:24px;flex:none;}
+.switch input{opacity:0;width:0;height:0;position:absolute;}
+.slider{
+  position:absolute;inset:0;background:var(--line-strong,#c9bca8);
+  border-radius:999px;cursor:pointer;transition:background .18s;
+}
+.slider::before{
+  content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;
+  background:#fff;border-radius:50%;transition:transform .18s;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.switch input:checked + .slider{background:var(--maroon-600,#7d2629);}
+.switch input:checked + .slider::before{transform:translateX(20px);}
+/* conditional sub-block */
+.conditional-block{
+  border-left:2px solid var(--gold-500,#d4af37);padding-left:15px;
+  display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;margin:2px 0 8px;
+}
+.conditional-block[hidden]{display:none;}
+/* document upload tiles */
+.docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:10px;}
+.doc-tile{
+  border:1px dashed var(--line-strong,#c9bca8);border-radius:8px;
+  padding:11px 12px;background:var(--paper,#faf7f2);
+}
+.doc-tile.filled{
+  border-style:solid;border-color:var(--success,#0f5132);
+  background:var(--success-bg,#d1e7dd);
+}
+.doc-tile .dt-name{font-size:12px;font-weight:600;color:var(--ink-700,#3d342f);display:block;}
+.doc-tile .dt-note{font-size:10.5px;color:var(--ink-500,#6b5e54);display:block;margin:1px 0 7px;}
+.doc-tile input[type=file]{width:100%;font-size:11px;}
+@media(max-width:640px){
+  .conditional-block,.docs-grid{grid-template-columns:1fr;}
+}
+
+/* Student detail modal — uploaded document links */
+.doc-list{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+.doc-link{
+  font-size:0.84rem;color:var(--maroon-700,#6b1f23);
+  text-decoration:none;padding:6px 10px;border-radius:6px;
+  background:var(--maroon-50,#fbf5f5);border:1px solid var(--line,#e5dccd);
+  transition:background .15s;
+}
+.doc-link:hover{background:var(--maroon-100,#f7ebec);}
+
+/* ══════════════════════════════════════════════════════════════════════
+   School Year management view
+   ══════════════════════════════════════════════════════════════════════ */
+.sy-active-banner{
+  background:var(--maroon-50,#fbf5f5);border:1px solid var(--maroon-100,#f7ebec);
+  border-radius:8px;padding:11px 15px;margin-bottom:16px;
+  font-size:0.92rem;color:var(--ink-700,#3d342f);
+}
+.sy-active-banner strong{color:var(--maroon-700,#6b1f23);font-size:1.02rem;}
+.sy-add-form{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+.sy-add-form .field{flex:1;min-width:200px;margin-bottom:0;}
+#sy-add-hint{margin-top:8px;}

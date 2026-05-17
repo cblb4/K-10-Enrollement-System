@@ -33,7 +33,9 @@
   const me = window.HLC_AUTH.requireRole('registrar', '../../auth.html');
   if (!me) return;
 
-  const { Students, Subjects, assignSubjectsToStudent, logActivity } = window.HLC_STORAGE;
+  const { Students, Subjects, assignSubjectsToStudent, logActivity,
+          getActiveSchoolYear, setActiveSchoolYear,
+          getKnownSchoolYears, addKnownSchoolYear } = window.HLC_STORAGE;
   const U = window.HLC_UTILS;
   const CFG = window.HLC_CONFIG;
   const $ = U.$, $$ = U.$$;
@@ -62,34 +64,63 @@
 
   // ----------- Reusable domain functions (per spec) -----------
 
-  function addStudent(data) {
-    const activeSY = window.HLC_STORAGE.getActiveSchoolYear();
-    const student = {
-      id: U.generateId('stu'),
-      firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      middleName: (data.middleName || '').trim(),
-      birthDate: data.birthDate,
-      gender: data.gender,
-      gradeLevel: data.gradeLevel,
-      guardianName: data.guardianName.trim(),
-      contact: data.contact.trim(),
-      address: data.address.trim(),
-      notes: (data.notes || '').trim(),
-      status: 'pending',
-      paymentStatus: 'unpaid',
-      paymentMode: 'full',
-      section: null,
-      charges: [],
-      schoolYear: activeSY,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    Students.create(student);
-    // Auto-apply every school-wide misc fee on enrollment
-    const applied = window.HLC_STORAGE.applySchoolWideFees(student.id);
-    logActivity('registrar', 'student.create', `${student.firstName} ${student.lastName} (${student.gradeLevel}, ${activeSY}) — ${applied.length} school fee(s) auto-applied`);
-    return student;
+  // The 8 requirement documents — must match the DB enum + enroll.html.
+  const ENROLL_DOCS = [
+    { type: 'affidavit_of_undertaking', name: 'Affidavit of Undertaking', note: 'PDF or image' },
+    { type: 'report_card',             name: 'Report Card',              note: 'PDF or image' },
+    { type: 'good_moral',              name: 'Good Moral Certificate',   note: 'PDF or image' },
+    { type: 'psa_birth_certificate',   name: 'PSA Birth Certificate',    note: 'Clear scanned copy' },
+    { type: 'doctors_advice',          name: "Doctor's Advice",          note: 'If applicable' },
+    { type: 'sbt_result',              name: 'SBT Result',               note: 'PDF or image' },
+    { type: 'flu_vaccine_certificate', name: 'Flu Vaccine Certificate',  note: 'PDF or image' },
+    { type: 'valid_id',                name: 'Valid ID',                 note: 'Parent / guardian ID' }
+  ];
+
+  /**
+   * Submit a registrar-side enrollment. Unlike the old localStorage path,
+   * the rebuilt form has two parents + emergency contact + documents, so it
+   * posts to the shared /api/online-enrollment endpoints (the only path that
+   * understands guardians and document uploads).
+   *
+   * A registrar submission is auto-approved right after creation — staff are
+   * trusted, unlike anonymous public submissions which stay 'pending'.
+   *
+   * @param {object} payload — JSON body for /submit
+   * @param {File[]} files   — [{type, file}] requirement documents
+   * @returns {Promise<object>} the created student record
+   */
+  async function addStudentOnline(payload, files) {
+    // Phase 1 — create the submission.
+    const created = await window.HLC_API.post('/api/online-enrollment/submit', payload);
+
+    // Phase 2 — upload any chosen documents (multipart).
+    if (files && files.length) {
+      const fd = new FormData();
+      files.forEach(f => fd.append(f.type, f.file));
+      const res = await fetch(
+        window.HLC_API.BASE + '/api/online-enrollment/' + created.id + '/documents',
+        {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + window.HLC_API.getToken() },
+          body: fd
+        }
+      );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error((e.error || 'Document upload failed') +
+          ' — the student was created; documents can be added later.');
+      }
+    }
+
+    // Phase 3 — auto-approve (registrar-entered → trusted).
+    await window.HLC_API.post(
+      '/api/online-enrollment/submissions/' + created.id + '/approve', {}
+    );
+
+    logActivity('registrar', 'student.create',
+      `${payload.learner.firstName} ${payload.learner.lastName} ` +
+      `(${payload.gradeLevel}) — enrolled at front desk`);
+    return created;
   }
 
   function updateStatus(studentId, status) {
@@ -110,6 +141,7 @@
       dashboard: ['Front Desk', 'Dashboard'],
       enroll:    ['New Record', 'Enrollment Form'],
       students:  ['Records', 'Student Directory'],
+      schoolyear:['Configuration', 'School Year Management'],
       gsa:       ['Academic', 'Student GSA'],
       subjects:  ['Curriculum', 'Subjects'],
       import:    ['Bulk Operations', 'Bulk Import']
@@ -119,6 +151,7 @@
     $('#page-title').textContent = title;
     if (name === 'dashboard')  renderDashboard();
     if (name === 'students')   renderStudentTable();
+    if (name === 'schoolyear') renderSchoolYears();
     if (name === 'gsa')        renderGSA();
     if (name === 'subjects')   renderSubjectsList();
     if (name === 'import')     { /* nothing to render; handlers wire on init */ }
@@ -175,25 +208,164 @@
 
   // ----------- Enrollment form -----------
   function initEnrollForm() {
+    // Grade level options.
     const grade = $('#gradeLevel');
     CFG.GRADE_LEVELS.forEach(g => grade.appendChild(U.el('option', { value: g }, g)));
 
-    $('#enroll-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const data = Object.fromEntries(fd.entries());
-      const required = ['firstName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address'];
-      for (const k of required) {
-        if (!U.isNonEmpty(data[k])) {
-          U.toast(`Please fill in: ${k.replace(/([A-Z])/g, ' $1').toLowerCase()}`, 'error');
+    // School Year options — populated from the centrally-managed list, with
+    // the active school year preselected as the default.
+    const syField = $('#schoolYear');
+    const active = getActiveSchoolYear();
+    U.clearNode(syField);
+    getKnownSchoolYears().forEach(sy => {
+      syField.appendChild(U.el('option',
+        { value: sy, selected: sy === active }, sy));
+    });
+
+    // Default enrollment date to today.
+    $('#enrollmentDate').value = new Date().toISOString().slice(0, 10);
+
+    // Build the 8 document upload tiles.
+    const docBox = $('#enroll-docs');
+    ENROLL_DOCS.forEach(d => {
+      const tile = U.el('div', { class: 'doc-tile', 'data-type': d.type });
+      tile.innerHTML =
+        '<span class="dt-name">' + d.name + '</span>' +
+        '<span class="dt-note">' + d.note + '</span>' +
+        '<input type="file" accept="application/pdf,image/*" data-doc="' + d.type + '">';
+      docBox.appendChild(tile);
+    });
+    docBox.addEventListener('change', e => {
+      if (e.target.type !== 'file') return;
+      e.target.closest('.doc-tile').classList.toggle('filled', !!e.target.files[0]);
+    });
+
+    // Age auto-computes from date of birth.
+    $('#l_birthDate').addEventListener('change', function () {
+      const out = $('#l_age');
+      if (!this.value) { out.value = ''; return; }
+      const dob = new Date(this.value), now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const m = now.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+      out.value = age >= 0 ? age : '';
+    });
+
+    // Shuttle service conditional fields.
+    $('#shuttleService').addEventListener('change', function () {
+      $('#shuttleFields').hidden = !this.checked;
+    });
+
+    $('#enroll-form').addEventListener('submit', onEnrollSubmit);
+  }
+
+  function enrollErr(msg) {
+    const box = $('#enroll-error');
+    box.textContent = msg;
+    box.classList.add('show');
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function onEnrollSubmit(e) {
+    e.preventDefault();
+    $('#enroll-error').classList.remove('show');
+    const v = id => ($('#' + id).value || '').trim();
+
+    // ── Required-field checks (mirror the server + the public form) ──
+    const required = {
+      enrollmentDate: 'Enrollment Date', schoolYear: 'School Year',
+      program: 'Program', gradeLevel: 'Grade Level',
+      l_lastName: 'Learner Last Name', l_firstName: 'Learner First Name',
+      l_birthDate: 'Date of Birth', l_gender: 'Gender',
+      e_fullName: 'Emergency Contact Name',
+      e_relationship: 'Emergency Contact Relationship',
+      e_mobile: 'Emergency Contact Mobile', e_address: 'Emergency Contact Address'
+    };
+    for (const k in required) {
+      if (!v(k)) { enrollErr('Please fill in: ' + required[k]); return; }
+    }
+    if ($('#shuttleService').checked && !v('carpoolService')) {
+      enrollErr('Carpool Service is required when Shuttle Service is on.');
+      return;
+    }
+
+    // ── At least one parent ──
+    const parentFilled = p => ['lastName', 'firstName', 'address', 'mobile']
+      .some(f => v(p + '_' + f));
+    const fT = parentFilled('f'), mT = parentFilled('m');
+    if (!fT && !mT) {
+      enrollErr("Please provide at least one parent's information (Father or Mother).");
+      return;
+    }
+    // If a parent block is started, its key fields are required.
+    for (const [p, touched] of [['f', fT], ['m', mT]]) {
+      if (!touched) continue;
+      for (const f of ['lastName', 'firstName', 'address', 'mobile']) {
+        if (!v(p + '_' + f)) {
+          enrollErr('Please complete the ' + (p === 'f' ? "Father" : "Mother") +
+            "'s information, or clear it entirely.");
           return;
         }
       }
-      const created = addStudent(data);
-      U.toast(`Enrolled: ${fullName(created)}`, 'success');
-      e.target.reset();
-      setActiveView('students');
+    }
+
+    // ── Build the payload (same shape the online form posts) ──
+    const parentObj = p => ({
+      lastName: v(p + '_lastName'), firstName: v(p + '_firstName'),
+      middleName: v(p + '_middleName'), homeAddress: v(p + '_address'),
+      religion: v(p + '_religion'), mobileNumber: v(p + '_mobile'),
+      telephoneNumber: v(p + '_tel')
     });
+    const payload = {
+      schoolYear: v('schoolYear'), program: v('program'),
+      gradeLevel: v('gradeLevel'), enrollmentDate: v('enrollmentDate'),
+      learner: {
+        lastName: v('l_lastName'), firstName: v('l_firstName'),
+        middleName: v('l_middleName'), birthDate: v('l_birthDate'),
+        gender: v('l_gender'), schoolLastAttended: v('l_school')
+      },
+      other: {
+        shuttleService: $('#shuttleService').checked,
+        carpoolService: v('carpoolService'),
+        escGrantee: $('#escGrantee').checked
+      },
+      emergency: {
+        fullName: v('e_fullName'), mobileNumber: v('e_mobile'),
+        relationship: v('e_relationship'), homeAddress: v('e_address')
+      }
+    };
+    if (fT) payload.father = parentObj('f');
+    if (mT) payload.mother = parentObj('m');
+
+    // ── Collect documents ──
+    const files = [];
+    $$('#enroll-docs input[type=file]').forEach(inp => {
+      if (inp.files && inp.files[0]) {
+        files.push({ type: inp.dataset.doc, file: inp.files[0] });
+      }
+    });
+
+    // ── Submit ──
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      const created = await addStudentOnline(payload, files);
+      U.toast('Enrolled: ' + payload.learner.firstName + ' ' +
+        payload.learner.lastName, 'success');
+      e.target.reset();
+      $('#enroll-docs').querySelectorAll('.doc-tile').forEach(t =>
+        t.classList.remove('filled'));
+      // Refresh the cache so the new student shows in Records immediately.
+      if (window.HLC_STORAGE && window.HLC_STORAGE.bootstrap) {
+        await window.HLC_STORAGE.bootstrap();
+      }
+      setActiveView('students');
+    } catch (err) {
+      enrollErr(err && err.message ? err.message :
+        'Enrollment failed. Please try again.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit Enrollment';
+    }
   }
 
   // ----------- Student table -----------
@@ -205,6 +377,7 @@
     const list = !f ? all : all.filter(s =>
       fullName(s).toLowerCase().includes(f) ||
       (s.gradeLevel || '').toLowerCase().includes(f) ||
+      (s.program || '').toLowerCase().includes(f) ||
       (s.status || '').toLowerCase().includes(f) ||
       (s.guardianName || '').toLowerCase().includes(f)
     );
@@ -212,7 +385,7 @@
     if (!list.length) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 6;
+      td.colSpan = 7;
       td.appendChild(emptyState('No students found', f ? 'Try a different search term.' : 'Add your first student through New Enrollment.'));
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -221,14 +394,24 @@
 
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(s => {
       const tr = document.createElement('tr');
-      tr.appendChild(U.el('td', {}, [
+      // Student — name + a small "Online" tag for online-sourced records.
+      const nameCell = [
         U.el('div', { style: 'font-weight:500;color:var(--ink-900);' }, fullName(s)),
         U.el('div', { style: 'font-size:0.78rem;color:var(--ink-500);' }, s.gender + ' · ' + U.formatDate(s.birthDate))
-      ]));
+      ];
+      if (s.enrollmentSource === 'online') {
+        nameCell.push(U.el('span', {
+          style: 'display:inline-block;margin-top:3px;font-size:0.66rem;' +
+            'font-weight:600;color:var(--maroon-700,#6b1f23);' +
+            'background:var(--maroon-100,#f7ebec);border-radius:4px;padding:1px 6px;'
+        }, 'ONLINE'));
+      }
+      tr.appendChild(U.el('td', {}, nameCell));
       tr.appendChild(U.el('td', {}, s.gradeLevel));
+      tr.appendChild(U.el('td', {}, s.program || '—'));
       tr.appendChild(U.el('td', {}, [
-        U.el('div', {}, s.guardianName),
-        U.el('div', { style: 'font-size:0.78rem;color:var(--ink-500);' }, s.contact)
+        U.el('div', {}, s.guardianName || '—'),
+        U.el('div', { style: 'font-size:0.78rem;color:var(--ink-500);' }, s.contact || '')
       ]));
       const statusTd = document.createElement('td');
       statusTd.appendChild(statusPill(s.status));
@@ -267,21 +450,32 @@
     const body = $('#sm-body');
     U.clearNode(body);
 
+    // ── Core detail grid — now includes the online-enrollment fields when
+    //    present. Walk-in students enrolled before migration 002 simply
+    //    show "—" for the new fields; nothing breaks. ──
     const grid = U.el('div', { class: 'detail-grid' });
     const fields = [
       ['Grade Level', s.gradeLevel],
       ['Status',      s.status],
+      ['Program',     s.program],
+      ['School Year', s.schoolYear],
       ['Birth Date',  U.formatDate(s.birthDate)],
+      ['Age',         computeAgeFrom(s.birthDate)],
       ['Gender',      s.gender],
-      ['Guardian',    s.guardianName],
-      ['Contact',     s.contact],
-      ['Address',     s.address],
-      ['Section',     s.section || '— Not assigned —']
+      ['School Last Attended', s.schoolLastAttended],
+      ['Enrollment Source', s.enrollmentSource === 'online' ? 'Online' : 'Walk-in'],
+      ['Enrollment Date',   U.formatDate(s.enrollmentDate)],
+      ['Shuttle Service',   s.shuttleService ? 'Yes' : 'No'],
+      ['Carpool Service',   s.shuttleService ? labelCarpool(s.carpoolService) : ''],
+      ['ESC Grantee',       s.escGrantee ? 'Yes' : 'No'],
+      ['Guardian (summary)', s.guardianName],
+      ['Contact (summary)',  s.contact],
+      ['Section',            s.section || '— Not assigned —']
     ];
     fields.forEach(([k, v]) => {
       grid.appendChild(U.el('div', {}, [
         U.el('div', { class: 'lbl' }, k),
-        U.el('div', { class: 'val' }, v || '—')
+        U.el('div', { class: 'val' }, (v === 0 || v) ? String(v) : '—')
       ]));
     });
     body.appendChild(grid);
@@ -291,10 +485,18 @@
       body.appendChild(U.el('div', { style: 'margin-bottom:18px;font-size:0.92rem;color:var(--ink-700);' }, s.notes));
     }
 
+    // ── Parents / emergency contact / documents — these live in separate
+    //    tables, so we fetch the fully-hydrated record on demand from the
+    //    online-enrollment endpoint. A placeholder shows while it loads. ──
+    const extra = U.el('div', { id: 'sm-extra' }, [
+      U.el('div', { style: 'font-size:0.85rem;color:var(--ink-500);padding:8px 0;' },
+        'Loading family & document details…')
+    ]);
+    body.appendChild(extra);
+    loadStudentExtras(studentId, extra);
+
+    // ── Academic mini-panel (unchanged — curriculum & applied fees) ──
     const mini = U.el('div', { class: 'charges-mini' });
-    // Registrar sees the academic side: subjects (curriculum) and the names
-    // of any fees applied to this student. Amounts, balances, payment status,
-    // and transaction history live in the cashier module — not here.
     const subjectEntries = (s.charges || []).filter(c => c.source === 'subject');
     const feeEntries     = (s.charges || []).filter(c => c.source !== 'subject');
 
@@ -324,7 +526,184 @@
     $('#student-modal').classList.add('open');
   }
 
+  // Compute age from a 'YYYY-MM-DD' birth date string.
+  function computeAgeFrom(birthDate) {
+    if (!birthDate) return '';
+    const dob = new Date(birthDate);
+    if (isNaN(dob.getTime())) return '';
+    const now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const m = now.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+    return age >= 0 ? age : '';
+  }
+
+  function labelCarpool(v) {
+    return ({ none: 'Round Trip', morning: 'One-Way — Morning',
+      afternoon: 'One-Way — Afternoon' })[v] || (v || '');
+  }
+
+  // Document-type code → human label (matches the 8 requirement documents).
+  const DOC_LABELS = {
+    affidavit_of_undertaking: 'Affidavit of Undertaking',
+    report_card: 'Report Card', good_moral: 'Good Moral Certificate',
+    psa_birth_certificate: 'PSA Birth Certificate',
+    doctors_advice: "Doctor's Advice", sbt_result: 'SBT Result',
+    flu_vaccine_certificate: 'Flu Vaccine Certificate', valid_id: 'Valid ID'
+  };
+
+  /**
+   * Fetch the fully-hydrated record (parents + emergency contact +
+   * documents) and render it into `host`. Safe for walk-in students too —
+   * the endpoint returns empty guardians/documents and we show a note.
+   */
+  async function loadStudentExtras(studentId, host) {
+    try {
+      const full = await window.HLC_API.get(
+        '/api/online-enrollment/submissions/' + studentId);
+      U.clearNode(host);
+
+      // Parents + emergency contact.
+      const people = [
+        ['Father', full.father], ['Mother', full.mother],
+        ['Emergency Contact', full.emergency]
+      ].filter(p => p[1]);
+
+      if (people.length) {
+        host.appendChild(U.el('h4', { style: 'margin:14px 0 6px;' },
+          'Family & Emergency Contact'));
+        people.forEach(([label, g]) => {
+          const name = g.fullName ||
+            [g.firstName, g.middleName, g.lastName].filter(Boolean).join(' ');
+          const rows = [
+            ['Name', name], ['Relationship', g.relationship],
+            ['Mobile', g.mobileNumber], ['Telephone', g.telephoneNumber],
+            ['Home Address', g.homeAddress], ['Religion', g.religion]
+          ].filter(r => r[1]);
+          const grid = U.el('div', { class: 'detail-grid' });
+          rows.forEach(([k, v]) => grid.appendChild(U.el('div', {}, [
+            U.el('div', { class: 'lbl' }, k),
+            U.el('div', { class: 'val' }, v)
+          ])));
+          host.appendChild(U.el('div', { class: 'charge-group-label' }, label));
+          host.appendChild(grid);
+        });
+      }
+
+      // Uploaded documents.
+      host.appendChild(U.el('h4', { style: 'margin:14px 0 6px;' },
+        `Documents (${(full.documents || []).length})`));
+      if (!full.documents || !full.documents.length) {
+        host.appendChild(U.el('div',
+          { style: 'font-size:0.85rem;color:var(--ink-500);' },
+          'No documents uploaded.'));
+      } else {
+        const list = U.el('div', { class: 'doc-list' });
+        full.documents.forEach(d => {
+          const a = U.el('a', {
+            href: window.HLC_API.BASE + d.url, target: '_blank',
+            rel: 'noopener', class: 'doc-link'
+          }, (DOC_LABELS[d.documentType] || d.documentType) +
+             ' — ' + d.originalName);
+          list.appendChild(a);
+        });
+        host.appendChild(list);
+      }
+    } catch (err) {
+      U.clearNode(host);
+      host.appendChild(U.el('div',
+        { style: 'font-size:0.82rem;color:var(--ink-500);' },
+        'Family & document details unavailable.'));
+    }
+  }
+
   function closeModal() { $('#student-modal').classList.remove('open'); }
+
+  // ----------- School Year management -----------
+  function renderSchoolYears() {
+    const active = getActiveSchoolYear();
+    $('#sy-active-label').textContent = active;
+
+    const tbody = $('#sy-tbl tbody');
+    U.clearNode(tbody);
+    const years = getKnownSchoolYears();
+
+    if (!years.length) {
+      const tr = document.createElement('tr');
+      const td = U.el('td', { colspan: 3 });
+      td.appendChild(emptyState('No school years yet',
+        'Add your first school year above.'));
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    years.forEach(sy => {
+      const isActive = sy === active;
+      const tr = document.createElement('tr');
+      tr.appendChild(U.el('td', { style: 'font-weight:500;' }, sy));
+
+      const statusTd = document.createElement('td');
+      statusTd.appendChild(U.el('span', {
+        class: 'pill ' + (isActive ? 'pill-approved' : 'pill-pending')
+      }, isActive ? 'Active' : 'Inactive'));
+      tr.appendChild(statusTd);
+
+      const actionTd = U.el('td', { class: 'actions' });
+      if (isActive) {
+        actionTd.appendChild(U.el('span',
+          { style: 'font-size:0.8rem;color:var(--ink-500);' },
+          'Current default'));
+      } else {
+        actionTd.appendChild(U.el('button', {
+          class: 'btn btn-primary btn-sm',
+          onclick: () => makeSchoolYearActive(sy)
+        }, 'Set as Active'));
+      }
+      tr.appendChild(actionTd);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function makeSchoolYearActive(sy) {
+    setActiveSchoolYear(sy);
+    logActivity('registrar', 'settings.activeSchoolYear',
+      `Active school year set to ${sy}`);
+    U.toast(`Active school year is now ${sy}`, 'success');
+    renderSchoolYears();
+  }
+
+  // Accepts "2026-2027" or "2026–2027" (en-dash); stores canonical hyphen form.
+  function normalizeSchoolYear(raw) {
+    const s = String(raw || '').trim().replace(/\u2013|\u2014/g, '-');
+    const m = s.match(/^(\d{4})\s*-\s*(\d{4})$/);
+    if (!m) return null;
+    const a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    if (b !== a + 1) return null;          // must be consecutive years
+    return `${a}-${b}`;
+  }
+
+  function initSchoolYearForm() {
+    $('#sy-add-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const raw = $('#sy-input').value;
+      const sy = normalizeSchoolYear(raw);
+      if (!sy) {
+        U.toast('Enter a valid school year, e.g. 2026-2027 ' +
+          '(two consecutive years).', 'error');
+        return;
+      }
+      if (getKnownSchoolYears().indexOf(sy) !== -1) {
+        U.toast(`${sy} is already in the list.`, 'error');
+        return;
+      }
+      addKnownSchoolYear(sy);
+      logActivity('registrar', 'settings.schoolYear', `Added school year ${sy}`);
+      U.toast(`Added school year ${sy}`, 'success');
+      $('#sy-input').value = '';
+      renderSchoolYears();
+    });
+  }
 
   // ----------- Student GSA (academic schedule & assessment) -----------
   // Registrar-side GSA: shows the curriculum and any fees applied to a student
@@ -1340,6 +1719,7 @@
 
     initEnrollForm();
     initSubjectForm();
+    initSchoolYearForm();
     initBulkImport();
     initGradeChangeModal();
     renderDashboard();

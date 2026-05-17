@@ -121,6 +121,20 @@ function rowToStudent(row, charges, archivedCharges) {
     section:        row.section_id || null,
     schoolYear:     row.school_year,
     discount,
+    // ── Online Enrollment Module fields (migration 002) ──────────────────
+    // Additive only — existing consumers (GSA, cashier, etc.) ignore these;
+    // the registrar's Student Records detail view reads them when present.
+    enrollmentSource:   row.enrollment_source || 'walk-in',
+    program:            row.program || '',
+    schoolLastAttended: row.school_last_attended || '',
+    enrollmentDate:     row.enrollment_date || null,
+    shuttleService:     !!row.shuttle_service,
+    carpoolService:     row.carpool_service || '',
+    escGrantee:         !!row.esc_grantee,
+    submittedAt:        toIso(row.submitted_at),
+    reviewedAt:         toIso(row.reviewed_at),
+    reviewedBy:         row.reviewed_by || null,
+    rejectionReason:    row.rejection_reason || null,
     charges:         (charges || []).map(rowToCharge),
     archivedCharges: (archivedCharges || []).map(rowToCharge),
     createdAt:      toIso(row.created_at),

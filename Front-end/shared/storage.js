@@ -226,6 +226,29 @@
     return sy;
   }
 
+  // ─── Known school years (the registrar-managed list) ───────────────────
+  // Stored centrally under the `knownSchoolYears` settings key so every
+  // module sees the same list. The active year is always implicitly known.
+  function getKnownSchoolYears() {
+    const list = Settings.get('knownSchoolYears', []);
+    const set = new Set(Array.isArray(list) ? list : []);
+    set.add(getActiveSchoolYear());            // active year is always present
+    return Array.from(set).sort();
+  }
+  function addKnownSchoolYear(sy) {
+    if (!sy || typeof sy !== 'string') return null;
+    const list = getKnownSchoolYears();
+    if (list.indexOf(sy) === -1) list.push(sy);
+    list.sort();
+    const prev = cache.settings.knownSchoolYears;
+    cache.settings.knownSchoolYears = list;
+    _bg(() => API.put('/api/settings/knownSchoolYears', { value: list }), {
+      onFailure() { cache.settings.knownSchoolYears = prev; },
+      errorPrefix: 'School year list save failed'
+    });
+    return list;
+  }
+
   // ─── Domain-specific helpers ───────────────────────────────────────────
   // These all hit dedicated server endpoints and replace the cached student
   // (or payment) with the server's authoritative version when the response
@@ -858,6 +881,8 @@
     editMiscFee,
     getActiveSchoolYear,
     setActiveSchoolYear,
+    getKnownSchoolYears,
+    addKnownSchoolYear,
     logActivity
   };
 })(window);

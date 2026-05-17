@@ -14,6 +14,7 @@
 'use strict';
 
 const express = require('express');
+const multer  = require('multer');
 
 const { requireAuth } = require('./middleware/auth');
 
@@ -25,9 +26,23 @@ const miscFees    = require('./controllers/miscFees.controller');
 const activityLog = require('./controllers/activityLog.controller');
 const settings    = require('./controllers/settings.controller');
 const users       = require('./controllers/users.controller');
+const onlineEnroll = require('./controllers/publicEnrollment.controller');
 const { sections, subjects, faculty } = require('./controllers/simple.controllers');
 
 const router = express.Router();
+
+// ─── Multipart upload config (Online Enrollment document uploads) ────────
+// In-memory storage: files are handed to fileStorage (the swappable disk/S3
+// layer) by the service. 8 MB per file is generous for a scanned PDF/photo;
+// at most 8 files (one per requirement document) in a single request.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 8 * 1024 * 1024, files: 8 },
+  fileFilter(_req, file, cb) {
+    const ok = /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(file.mimetype);
+    cb(ok ? null : new Error('Only PDF or image files are allowed'), ok);
+  }
+});
 
 // ─── Auth (public) ───────────────────────────────────────────────────────
 router.post('/auth/signup', auth.signup);
@@ -36,6 +51,32 @@ router.get ('/auth/me',     requireAuth(), auth.me);
 
 // ─── Bootstrap (one-shot snapshot for the frontend cache) ────────────────
 router.get('/bootstrap', requireAuth(), bootstrap.bootstrap);
+
+// ─── Online Enrollment Module ────────────────────────────────────────────
+// PUBLIC (no auth) — the parent-facing enroll.html form.
+//   submit:  JSON body → creates a 'pending' student + guardian rows.
+//   :id/documents: multipart upload of the requirement files. multer
+//   accepts ANY field name; each file's fieldname IS its document type, so
+//   .any() is correct here (the service validates the type against a
+//   whitelist).
+router.post('/online-enrollment/submit', onlineEnroll.submit);
+router.post('/online-enrollment/:id/documents',
+  upload.any(), onlineEnroll.uploadDocuments);
+// Public read: the school-year list + active year, so the public form can
+// default its dropdown without needing a login.
+router.get('/online-enrollment/school-years', onlineEnroll.schoolYears);
+
+// REGISTRAR (auth) — the "Online Submissions" review queue.
+router.get ('/online-enrollment/submissions',
+  requireAuth(), onlineEnroll.listSubmissions);
+router.get ('/online-enrollment/submissions/:id',
+  requireAuth(), onlineEnroll.getSubmission);
+router.post('/online-enrollment/submissions/:id/approve',
+  requireAuth(), onlineEnroll.approve);
+router.post('/online-enrollment/submissions/:id/reject',
+  requireAuth(), onlineEnroll.reject);
+router.get ('/online-enrollment/documents/:docId/file',
+  requireAuth(), onlineEnroll.downloadDocument);
 
 // ─── Students ────────────────────────────────────────────────────────────
 router.get   ('/students',        requireAuth(), students.list);

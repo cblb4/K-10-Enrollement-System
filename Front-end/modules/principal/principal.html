@@ -109,6 +109,14 @@
           <p>Raw data structured into meaningful summaries — counts per grade, financial totals, payment progress.</p>
         </div>
 
+        <div class="analytics-toolbar">
+          <label for="info-sy-filter">School Year</label>
+          <select id="info-sy-filter">
+            <option value="all">All School Years</option>
+          </select>
+          <span class="hint" id="info-sy-hint"></span>
+        </div>
+
         <div class="stat-grid" id="info-stats"></div>
 
         <div class="two-col">
@@ -127,6 +135,14 @@
             </div>
             <div class="bar-chart" id="info-finance-chart"></div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Enrollment by Status</h3>
+            <span class="hint">Pending · Approved · Enrolled · Rejected</span>
+          </div>
+          <div class="bar-chart" id="info-status-chart"></div>
         </div>
       </section>
 

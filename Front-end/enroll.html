@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Online Enrollment · Heartworks Learning Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="enroll.css" />
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="crest">H</div>
+    <h1>Heartworks Learning Center</h1>
+    <div class="sub">Online Enrollment</div>
+    <p class="desc">Complete this form to enroll a learner for the upcoming school year.<br>
+      Fields marked <strong class="req-mark">*</strong> are required.</p>
+  </header>
+
+  <div class="wrap">
+    <div id="form-error" class="form-error"></div>
+
+    <!-- ════════ THE FORM ════════ -->
+    <form id="enroll-form" novalidate>
+
+      <!-- ── 1. Enrollment Information ─────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">1</span> Enrollment Information</legend>
+        <div class="grid">
+          <div class="field">
+            <label>Enrollment Status</label>
+            <span class="badge">Pending</span>
+            <span class="hint">Set automatically. The registrar reviews every submission.</span>
+          </div>
+          <div class="field">
+            <label for="enrollmentDate">Enrollment Date <span class="req">*</span></label>
+            <input type="date" id="enrollmentDate" name="enrollmentDate" required>
+            <span class="err-msg" data-err="enrollmentDate"></span>
+          </div>
+          <div class="field">
+            <label for="schoolYear">School Year <span class="req">*</span></label>
+            <select id="schoolYear" name="schoolYear" required>
+              <option value="">Loading…</option>
+            </select>
+            <span class="err-msg" data-err="schoolYear"></span>
+          </div>
+          <div class="field">
+            <label for="program">Program <span class="req">*</span></label>
+            <select id="program" name="program" required>
+              <option value="">Select…</option>
+              <option>Pre-School</option>
+              <option>Elementary</option>
+              <option>Junior High School</option>
+            </select>
+            <span class="err-msg" data-err="program"></span>
+          </div>
+          <div class="field col-span-2">
+            <label for="gradeLevel">Grade Level <span class="req">*</span></label>
+            <select id="gradeLevel" name="gradeLevel" required>
+              <option value="">Select…</option>
+              <option>Kindergarten</option>
+              <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option>
+              <option>Grade 4</option><option>Grade 5</option><option>Grade 6</option>
+              <option>Grade 7</option><option>Grade 8</option><option>Grade 9</option>
+              <option>Grade 10</option>
+            </select>
+            <span class="err-msg" data-err="gradeLevel"></span>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 2. Learner's Information ──────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">2</span> Learner's Information</legend>
+        <div class="grid">
+          <div class="field">
+            <label for="l_lastName">Last Name <span class="req">*</span></label>
+            <input type="text" id="l_lastName" required maxlength="100">
+            <span class="err-msg" data-err="l_lastName"></span>
+          </div>
+          <div class="field">
+            <label for="l_firstName">First Name <span class="req">*</span></label>
+            <input type="text" id="l_firstName" required maxlength="100">
+            <span class="err-msg" data-err="l_firstName"></span>
+          </div>
+          <div class="field">
+            <label for="l_middleName">Middle Name <span class="opt">(optional)</span></label>
+            <input type="text" id="l_middleName" maxlength="100">
+          </div>
+          <div class="field">
+            <label for="l_birthDate">Date of Birth <span class="req">*</span></label>
+            <input type="date" id="l_birthDate" required>
+            <span class="err-msg" data-err="l_birthDate"></span>
+          </div>
+          <div class="field">
+            <label for="l_age">Age</label>
+            <input type="number" id="l_age" readonly placeholder="—"
+                   class="readonly-input">
+            <span class="hint">Computed from date of birth.</span>
+          </div>
+          <div class="field">
+            <label for="l_gender">Gender <span class="req">*</span></label>
+            <select id="l_gender" required>
+              <option value="">Select…</option>
+              <option>Male</option><option>Female</option><option>Other</option>
+            </select>
+            <span class="err-msg" data-err="l_gender"></span>
+          </div>
+          <div class="field col-span-2">
+            <label for="l_school">School Last Attended <span class="opt">(optional)</span></label>
+            <input type="text" id="l_school" maxlength="200" placeholder="Previous school name">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 3. Other Information ──────────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">3</span> Other Information</legend>
+        <div class="grid">
+          <div class="field col-span-2">
+            <div class="toggle-row">
+              <label class="switch">
+                <input type="checkbox" id="shuttleService">
+                <span class="slider"></span>
+              </label>
+              <span class="toggle-label">Learner will use the school <strong>Shuttle Service</strong></span>
+            </div>
+          </div>
+          <!-- Conditional: only required when shuttle service is ON -->
+          <div class="conditional" id="shuttleFields" hidden>
+            <div class="field">
+              <label for="carpoolService">Carpool Service <span class="req">*</span></label>
+              <select id="carpoolService">
+                <option value="">Select…</option>
+                <option value="none">Round Trip (not one-way)</option>
+                <option value="morning">One-Way — Morning only</option>
+                <option value="afternoon">One-Way — Afternoon only</option>
+              </select>
+              <span class="err-msg" data-err="carpoolService"></span>
+            </div>
+          </div>
+          <div class="field col-span-2">
+            <div class="toggle-row">
+              <label class="switch">
+                <input type="checkbox" id="escGrantee">
+                <span class="slider"></span>
+              </label>
+              <span class="toggle-label">Learner is an <strong>ESC Grantee</strong>
+                (Educational Service Contracting)</span>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 4. Father's Information ───────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">4</span> Father's Information</legend>
+        <p class="hint hint-spaced">
+          Provide at least one parent (father or mother). Leave this section
+          blank if not applicable.</p>
+        <div class="grid" data-parent="father">
+          <div class="field">
+            <label for="f_lastName">Last Name</label>
+            <input type="text" id="f_lastName" maxlength="100">
+            <span class="err-msg" data-err="f_lastName"></span>
+          </div>
+          <div class="field">
+            <label for="f_firstName">First Name</label>
+            <input type="text" id="f_firstName" maxlength="100">
+            <span class="err-msg" data-err="f_firstName"></span>
+          </div>
+          <div class="field">
+            <label for="f_middleName">Middle Name <span class="opt">(optional)</span></label>
+            <input type="text" id="f_middleName" maxlength="100">
+          </div>
+          <div class="field">
+            <label for="f_religion">Religion <span class="opt">(optional)</span></label>
+            <input type="text" id="f_religion" maxlength="100">
+          </div>
+          <div class="field col-span-2">
+            <label for="f_address">Home Address</label>
+            <textarea id="f_address"></textarea>
+            <span class="err-msg" data-err="f_address"></span>
+          </div>
+          <div class="field">
+            <label for="f_mobile">Mobile Number</label>
+            <input type="tel" id="f_mobile" maxlength="50" placeholder="09XX XXX XXXX">
+            <span class="err-msg" data-err="f_mobile"></span>
+          </div>
+          <div class="field">
+            <label for="f_tel">Telephone Number <span class="opt">(optional)</span></label>
+            <input type="tel" id="f_tel" maxlength="50">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 5. Mother's Information ───────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">5</span> Mother's Information</legend>
+        <div class="grid" data-parent="mother">
+          <div class="field">
+            <label for="m_lastName">Last Name</label>
+            <input type="text" id="m_lastName" maxlength="100">
+            <span class="err-msg" data-err="m_lastName"></span>
+          </div>
+          <div class="field">
+            <label for="m_firstName">First Name</label>
+            <input type="text" id="m_firstName" maxlength="100">
+            <span class="err-msg" data-err="m_firstName"></span>
+          </div>
+          <div class="field">
+            <label for="m_middleName">Middle Name <span class="opt">(optional)</span></label>
+            <input type="text" id="m_middleName" maxlength="100">
+          </div>
+          <div class="field">
+            <label for="m_religion">Religion <span class="opt">(optional)</span></label>
+            <input type="text" id="m_religion" maxlength="100">
+          </div>
+          <div class="field col-span-2">
+            <label for="m_address">Home Address</label>
+            <textarea id="m_address"></textarea>
+            <span class="err-msg" data-err="m_address"></span>
+          </div>
+          <div class="field">
+            <label for="m_mobile">Mobile Number</label>
+            <input type="tel" id="m_mobile" maxlength="50" placeholder="09XX XXX XXXX">
+            <span class="err-msg" data-err="m_mobile"></span>
+          </div>
+          <div class="field">
+            <label for="m_tel">Telephone Number <span class="opt">(optional)</span></label>
+            <input type="tel" id="m_tel" maxlength="50">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 6. Emergency Contact ──────────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">6</span> Emergency Contact Information</legend>
+        <div class="grid">
+          <div class="field">
+            <label for="e_fullName">Full Name <span class="req">*</span></label>
+            <input type="text" id="e_fullName" required maxlength="200">
+            <span class="err-msg" data-err="e_fullName"></span>
+          </div>
+          <div class="field">
+            <label for="e_relationship">Relationship to Learner <span class="req">*</span></label>
+            <input type="text" id="e_relationship" required maxlength="100"
+                   placeholder="e.g. Aunt, Guardian">
+            <span class="err-msg" data-err="e_relationship"></span>
+          </div>
+          <div class="field">
+            <label for="e_mobile">Mobile Number <span class="req">*</span></label>
+            <input type="tel" id="e_mobile" required maxlength="50" placeholder="09XX XXX XXXX">
+            <span class="err-msg" data-err="e_mobile"></span>
+          </div>
+          <div class="field col-span-2">
+            <label for="e_address">Home Address <span class="req">*</span></label>
+            <textarea id="e_address" required></textarea>
+            <span class="err-msg" data-err="e_address"></span>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ── 7. Required Documents ─────────────────────────────────────── -->
+      <fieldset>
+        <legend><span class="n">7</span> Required Documents</legend>
+        <p class="hint hint-spaced">
+          Upload a clear PDF or photo (max 8&nbsp;MB each). You may submit the
+          form first and bring missing documents to the registrar's office.</p>
+        <div class="docs" id="docs">
+          <!-- doc tiles injected by JS -->
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" class="btn" id="submitBtn">Submit Enrollment</button>
+        <span class="hint">By submitting, you confirm the information is accurate.</span>
+      </div>
+    </form>
+
+    <!-- ════════ SUCCESS ════════ -->
+    <div class="success-panel" id="success">
+      <div class="check">&#10003;</div>
+      <h2>Enrollment Submitted</h2>
+      <p>Thank you. Your enrollment form has been received and is now
+         <strong>pending review</strong> by the registrar.</p>
+      <p>You will be contacted regarding the result. Please keep your
+         reference number for follow-ups.</p>
+      <div class="ref-chip" id="refChip">—</div>
+    </div>
+  </div>
+
+  <script src="enroll.js"></script>
+</body>
+</html>
