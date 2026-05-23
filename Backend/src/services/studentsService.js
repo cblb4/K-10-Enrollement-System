@@ -112,33 +112,71 @@ async function create(input) {
  * endpoints (addCharge, recordPayment, etc.) so accounting stays auditable.
  */
 const PATCHABLE_FIELDS = {
-  firstName:     'first_name',
-  lastName:      'last_name',
-  middleName:    'middle_name',
-  birthDate:     'birth_date',
-  gender:        'gender',
-  gradeLevel:    'grade_level',
-  guardianName:  'guardian_name',
-  contact:       'contact',
-  address:       'address',
-  notes:         'notes',
-  status:        'status',
-  paymentStatus: 'payment_status',
-  paymentMode:   'payment_mode',
-  section:       'section_id',
-  schoolYear:    'school_year'
+  firstName:          'first_name',
+  lastName:           'last_name',
+  middleName:         'middle_name',
+  birthDate:          'birth_date',
+  gender:             'gender',
+  gradeLevel:         'grade_level',
+  guardianName:       'guardian_name',
+  contact:            'contact',
+  address:            'address',
+  notes:              'notes',
+  status:             'status',
+  paymentStatus:      'payment_status',
+  paymentMode:        'payment_mode',
+  section:            'section_id',
+  schoolYear:         'school_year',
+  // ── Online-enrollment fields (added so the registrar's edit modal can
+  //     update them too — schema columns exist since migration 002). ──
+  program:            'program',
+  schoolLastAttended: 'school_last_attended',
+  enrollmentDate:     'enrollment_date',
+  shuttleService:     'shuttle_service',
+  carpoolService:     'carpool_service',
+  escGrantee:         'esc_grantee'
 };
 
+// Boolean → TINYINT(1) columns. Listed here so the update() function knows
+// to coerce truthy/falsy JS values into 0/1 before writing.
+const BOOLEAN_FIELDS = new Set(['shuttleService', 'escGrantee']);
+
 async function update(id, patch) {
-  const existing = await db.queryOne('SELECT id FROM students WHERE id = ?', [id]);
+  const existing = await db.queryOne('SELECT id, status FROM students WHERE id = ?', [id]);
   if (!existing) return null;
+
+  // Gate approval transitions on document completeness. When a registrar
+  // tries to flip a student's status to 'approved' or 'enrolled' via the
+  // standard PATCH route, refuse unless all 8 required documents are on
+  // file. The approve service has its own legacy path that's intentionally
+  // NOT gated here (bulk import + online-form review flow rely on it),
+  // so this check only fires on the manual edit surface.
+  if (patch && (patch.status === 'approved' || patch.status === 'enrolled')) {
+    const prevStatus = existing.status;
+    if (prevStatus !== 'approved' && prevStatus !== 'enrolled') {
+      const missing = await missingRequiredDocuments(id);
+      if (missing.length) {
+        const { HttpError } = require('../middleware/errorHandler');
+        throw new HttpError(
+          400,
+          'Cannot approve: required documents are missing',
+          { missingDocuments: missing }
+        );
+      }
+    }
+  }
 
   const setFragments = [];
   const values = [];
   for (const [k, v] of Object.entries(patch || {})) {
     if (PATCHABLE_FIELDS[k]) {
       setFragments.push(`${PATCHABLE_FIELDS[k]} = ?`);
-      values.push(v === '' ? null : v);
+      // Booleans → 0/1 for TINYINT columns. '' → NULL otherwise.
+      if (BOOLEAN_FIELDS.has(k)) {
+        values.push(v ? 1 : 0);
+      } else {
+        values.push(v === '' ? null : v);
+      }
     } else if (k === 'discount') {
       setFragments.push('discount_label = ?');   values.push(v && v.label   ? v.label : null);
       setFragments.push('discount_amount = ?');  values.push(v && v.amount  != null ? v.amount  : null);
@@ -154,6 +192,33 @@ async function update(id, patch) {
     values
   );
   return getById(id);
+}
+
+/**
+ * Returns the list of document types that are required for approval but
+ * not yet uploaded for this student. Empty array means the student is
+ * document-complete. Used by update() to gate the manual approval surface
+ * — see the comment block in update() for why the legacy /approve path is
+ * intentionally NOT gated.
+ */
+const REQUIRED_DOCUMENT_TYPES = [
+  'affidavit_of_undertaking',
+  'report_card',
+  'good_moral',
+  'psa_birth_certificate',
+  'doctors_advice',
+  'sbt_result',
+  'flu_vaccine_certificate',
+  'valid_id'
+];
+
+async function missingRequiredDocuments(studentId) {
+  const rows = await db.query(
+    'SELECT document_type FROM enrollment_documents WHERE student_id = ?',
+    [studentId]
+  );
+  const present = new Set(rows.map(r => r.document_type));
+  return REQUIRED_DOCUMENT_TYPES.filter(t => !present.has(t));
 }
 
 async function remove(id) {
@@ -406,5 +471,7 @@ module.exports = {
   addCharge,
   applySchoolWideFees,
   applyMiscFee,
-  assignSubjectsToStudent
+  assignSubjectsToStudent,
+  missingRequiredDocuments,
+  REQUIRED_DOCUMENT_TYPES
 };

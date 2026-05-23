@@ -430,6 +430,16 @@
         style: 'margin-left:6px;',
         onclick: () => openGradeChangeModal(s.id)
       }, 'Change Grade'));
+      actions.appendChild(U.el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left:6px;',
+        onclick: () => openEditStudentModal(s.id)
+      }, 'Edit'));
+      actions.appendChild(U.el('button', {
+        class: 'btn btn-danger btn-sm',
+        style: 'margin-left:6px;',
+        onclick: () => openDeleteStudentModal(s.id)
+      }, 'Delete'));
       if (s.status === 'pending') {
         actions.appendChild(U.el('button', {
           class: 'btn btn-primary btn-sm',
@@ -600,11 +610,36 @@
       } else {
         const list = U.el('div', { class: 'doc-list' });
         full.documents.forEach(d => {
+          // The backend's download route is auth-protected. A plain
+          // <a href> link would navigate the browser there without
+          // attaching the JWT (which lives in localStorage, not a
+          // cookie), so we'd get "Missing or malformed Authorization
+          // header". Instead, intercept the click, fetch the file with
+          // the Authorization header, convert to a blob URL, and open
+          // THAT in a new tab. The blob URL is local to the browser, no
+          // auth needed.
           const a = U.el('a', {
-            href: window.HLC_API.BASE + d.url, target: '_blank',
-            rel: 'noopener', class: 'doc-link'
+            href: '#', class: 'doc-link'
           }, (DOC_LABELS[d.documentType] || d.documentType) +
              ' — ' + d.originalName);
+          a.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            try {
+              const res = await fetch(window.HLC_API.BASE + d.url, {
+                headers: { 'Authorization': 'Bearer ' + window.HLC_API.getToken() }
+              });
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              const blob = await res.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              // Open in a new tab. Revoke the URL after a beat so it
+              // doesn't leak memory; the new tab caches the bytes.
+              window.open(blobUrl, '_blank', 'noopener');
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+            } catch (err) {
+              U.toast('Could not open document: ' +
+                      (err.message || 'unknown error'), 'error');
+            }
+          });
           list.appendChild(a);
         });
         host.appendChild(list);
@@ -1211,18 +1246,63 @@
   // itself is always an alias (so the original "firstName" header works
   // unchanged).
 
+  // Student alias map mirrors the Enrollment Form (enroll.html / onEnrollSubmit)
+  // 1:1. Canonical names use dot-paths matching the JSON the form posts to
+  // /api/online-enrollment/submit, so the validator can re-assemble that same
+  // payload with no shape translation.
+  //
+  // Sections covered (form ⇄ canonical):
+  //   1. Enrollment Info      → schoolYear, program, gradeLevel, enrollmentDate
+  //   2. Learner              → learner.*
+  //   3. Other                → other.shuttleService / carpoolService / escGrantee
+  //   4. Father               → father.* (optional block — required if any field present)
+  //   5. Mother               → mother.* (optional block — required if any field present)
+  //   6. Emergency contact    → emergency.* (all required)
+  //   (Required documents are file uploads only — no spreadsheet columns.)
   const IMPORT_ALIASES = {
     students: {
-      firstName:    ['first name', 'fname', 'given name', 'givenname'],
-      lastName:     ['last name', 'lname', 'surname', 'family name', 'familyname'],
-      middleName:   ['middle name', 'mname', 'middle initial', 'middleinitial', 'mi'],
-      birthDate:    ['birth date', 'date of birth', 'dob', 'birthday', 'birthdate', 'date_of_birth'],
-      gender:       ['sex'],
-      gradeLevel:   ['grade level', 'grade', 'year level', 'yearlevel', 'level', 'year'],
-      guardianName: ['guardian name', 'guardian', 'parent', 'parent name', 'parentname', 'parent/guardian', 'parentguardian'],
-      contact:      ['contact number', 'phone', 'phone number', 'phonenumber', 'mobile', 'mobile number', 'cellphone', 'cell', 'tel', 'telephone'],
-      address:      ['home address', 'homeaddress', 'residence', 'street address', 'streetaddress'],
-      notes:        ['remarks', 'comments', 'note']
+      // ── 1. Enrollment information ──
+      schoolYear:        ['school year', 'sy', 'academic year', 'academicyear'],
+      program:           ['program name', 'programname', 'level program', 'levelprogram'],
+      gradeLevel:        ['grade level', 'grade', 'year level', 'yearlevel', 'level', 'year'],
+      enrollmentDate:    ['enrollment date', 'date of enrollment', 'date enrolled', 'dateenrolled', 'enrolldate', 'enrolled on'],
+
+      // ── 2. Learner's information ──
+      'learner.lastName':           ['learner last name', 'learnerlastname', 'student last name', 'studentlastname', 'last name', 'lname', 'l_lastname', 'surname', 'family name', 'familyname'],
+      'learner.firstName':          ['learner first name', 'learnerfirstname', 'student first name', 'studentfirstname', 'first name', 'fname', 'l_firstname', 'given name', 'givenname'],
+      'learner.middleName':         ['learner middle name', 'learnermiddlename', 'student middle name', 'middle name', 'mname', 'l_middlename', 'middle initial', 'middleinitial', 'mi'],
+      'learner.birthDate':          ['learner birth date', 'learnerbirthdate', 'student birth date', 'birth date', 'date of birth', 'dob', 'birthday', 'birthdate', 'date_of_birth', 'l_birthdate'],
+      'learner.gender':             ['learner gender', 'learnergender', 'student gender', 'gender', 'sex', 'l_gender'],
+      'learner.schoolLastAttended': ['school last attended', 'schoollastattended', 'last school', 'previous school', 'previousschool', 'l_school', 'former school', 'formerschool'],
+
+      // ── 3. Other information ──
+      'other.shuttleService':       ['shuttle service', 'shuttle', 'shuttleservice', 'uses shuttle', 'shuttle bus'],
+      'other.carpoolService':       ['carpool service', 'carpool', 'carpoolservice', 'shuttle type', 'shuttletype'],
+      'other.escGrantee':           ['esc grantee', 'escgrantee', 'esc', 'educational service contracting', 'esc grant'],
+
+      // ── 4. Father's information ──
+      'father.lastName':        ['father last name', 'fatherlastname', 'father surname', 'fathersurname', 'f_lastname', 'dad last name', 'dadlastname'],
+      'father.firstName':       ['father first name', 'fatherfirstname', 'father given name', 'f_firstname', 'dad first name', 'dadfirstname'],
+      'father.middleName':      ['father middle name', 'fathermiddlename', 'f_middlename', 'dad middle name'],
+      'father.homeAddress':     ['father address', 'father home address', 'fatheraddress', 'fatherhomeaddress', 'f_address', 'dad address'],
+      'father.religion':        ['father religion', 'fatherreligion', 'f_religion', 'dad religion'],
+      'father.mobileNumber':    ['father mobile', 'fathermobile', 'father mobile number', 'fathermobilenumber', 'father phone', 'fatherphone', 'father cell', 'fathercell', 'f_mobile', 'dad mobile', 'dadmobile'],
+      'father.telephoneNumber': ['father telephone', 'fathertelephone', 'father telephone number', 'fathertelephonenumber', 'father tel', 'fathertel', 'father landline', 'fatherlandline', 'f_tel'],
+
+      // ── 5. Mother's information ──
+      'mother.lastName':        ['mother last name', 'motherlastname', 'mother surname', 'mothersurname', 'm_lastname', 'mom last name', 'momlastname'],
+      'mother.firstName':       ['mother first name', 'motherfirstname', 'mother given name', 'm_firstname', 'mom first name', 'momfirstname'],
+      'mother.middleName':      ['mother middle name', 'mothermiddlename', 'mother maiden name', 'mothermaidenname', 'm_middlename', 'mom middle name'],
+      'mother.homeAddress':     ['mother address', 'mother home address', 'motheraddress', 'motherhomeaddress', 'm_address', 'mom address'],
+      'mother.religion':        ['mother religion', 'motherreligion', 'm_religion', 'mom religion'],
+      'mother.mobileNumber':    ['mother mobile', 'mothermobile', 'mother mobile number', 'mothermobilenumber', 'mother phone', 'motherphone', 'mother cell', 'mothercell', 'm_mobile', 'mom mobile', 'mommobile'],
+      'mother.telephoneNumber': ['mother telephone', 'mothertelephone', 'mother telephone number', 'mothertelephonenumber', 'mother tel', 'mothertel', 'mother landline', 'motherlandline', 'm_tel'],
+
+      // ── 6. Emergency contact ──
+      'emergency.fullName':     ['emergency contact', 'emergencycontact', 'emergency name', 'emergencyname', 'emergency full name', 'emergencyfullname', 'emergency contact name', 'emergencycontactname', 'e_fullname'],
+      'emergency.relationship': ['emergency relationship', 'emergencyrelationship', 'emergency contact relationship', 'emergencycontactrelationship', 'relationship to learner', 'relationshiptolearner', 'relationship', 'e_relationship'],
+      'emergency.mobileNumber': ['emergency mobile', 'emergencymobile', 'emergency mobile number', 'emergencymobilenumber', 'emergency contact mobile', 'emergencycontactmobile', 'emergency phone', 'emergencyphone', 'emergency cell', 'emergencycell', 'e_mobile'],
+      'emergency.homeAddress':  ['emergency address', 'emergencyaddress', 'emergency home address', 'emergencyhomeaddress', 'emergency contact address', 'emergencycontactaddress', 'e_address']
     },
     subjects: {
       name:        ['subject', 'subject name', 'subjectname', 'title'],
@@ -1231,45 +1311,172 @@
     }
   };
 
+  // Valid programs and gender values mirror enroll.html exactly.
+  const IMPORT_PROGRAMS = ['Pre-School', 'Elementary', 'Junior High School'];
+  const IMPORT_CARPOOL  = ['none', 'morning', 'afternoon'];
+
+  // "yes" / "true" / "1" / "y" / "on" → true. Everything else → false.
+  // Blank / undefined → false (the form's default for unchecked switches).
+  function parseImportBool(v) {
+    if (v === true || v === 1) return true;
+    if (v === false || v === 0 || v == null) return false;
+    const s = String(v).trim().toLowerCase();
+    if (!s) return false;
+    return /^(1|y|yes|true|t|on|✓|✔)$/.test(s);
+  }
+
+  function matchImportProgram(v) {
+    if (v == null) return '';
+    const s = String(v).trim();
+    if (!s) return '';
+    const n = s.toLowerCase().replace(/[\s-]+/g, '');
+    for (const p of IMPORT_PROGRAMS) {
+      if (p.toLowerCase().replace(/[\s-]+/g, '') === n) return p;
+    }
+    // Common shorthand: "preschool", "elem", "jhs", "highschool"
+    if (/^(preschool|pre|prek|kinder)/.test(n))  return 'Pre-School';
+    if (/^(elem|elementary|grade[1-6])/.test(n)) return 'Elementary';
+    if (/^(jhs|junior|highschool|highschooljr|grade(7|8|9|10))/.test(n)) return 'Junior High School';
+    return '';
+  }
+
+  // Normalize carpool to the form's enum values. Accepts the raw values
+  // ("none" / "morning" / "afternoon") and friendly synonyms.
+  function normalizeCarpool(v) {
+    if (v == null) return '';
+    const s = String(v).trim().toLowerCase();
+    if (!s) return '';
+    if (IMPORT_CARPOOL.includes(s)) return s;
+    if (/round\s*trip|two\s*way|both/.test(s)) return 'none';
+    if (/morning|am\b|^am$|am\s*only/.test(s)) return 'morning';
+    if (/afternoon|pm\b|^pm$|pm\s*only/.test(s)) return 'afternoon';
+    return '';
+  }
+
+  // Read a dot-pathed canonical field ("learner.firstName") off the
+  // alias-resolved row, where applyAliasMap stores values with the dot keys
+  // as plain strings (the alias map's canonical names are literal).
+  function pick(row, key) {
+    const v = row[key];
+    return v === undefined || v === null ? '' : (typeof v === 'string' ? v.trim() : v);
+  }
+
   const IMPORT_VALIDATORS = {
     students: (row) => {
-      const required = ['firstName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address'];
-      for (const k of required) {
-        if (row[k] === undefined || row[k] === null || String(row[k]).trim() === '') {
-          return { valid: false, error: 'Missing ' + k };
+      // Mirror enroll.html's onEnrollSubmit "required" list — same fields,
+      // same messages format.
+      const requiredMap = {
+        enrollmentDate:          'Enrollment Date',
+        schoolYear:              'School Year',
+        program:                 'Program',
+        gradeLevel:              'Grade Level',
+        'learner.lastName':      'Learner Last Name',
+        'learner.firstName':     'Learner First Name',
+        'learner.birthDate':     'Date of Birth',
+        'learner.gender':        'Gender',
+        'emergency.fullName':    'Emergency Contact Name',
+        'emergency.relationship':'Emergency Contact Relationship',
+        'emergency.mobileNumber':'Emergency Contact Mobile',
+        'emergency.homeAddress': 'Emergency Contact Address'
+      };
+      for (const k in requiredMap) {
+        if (String(pick(row, k)).trim() === '') {
+          return { valid: false, error: 'Missing ' + requiredMap[k] };
         }
       }
 
-      const gradeLevel = window.HLC_IMPORT.matchGradeLevel(row.gradeLevel, CFG.GRADE_LEVELS);
-      if (!gradeLevel) {
-        return { valid: false, error: 'Unknown grade: ' + row.gradeLevel };
-      }
+      // Program — must be one of the three form options.
+      const program = matchImportProgram(pick(row, 'program'));
+      if (!program) return { valid: false, error: 'Bad program: ' + row.program };
 
-      const birthDate = window.HLC_IMPORT.toIsoDate(row.birthDate);
-      if (!birthDate) {
-        return { valid: false, error: 'Bad birthDate: ' + row.birthDate };
-      }
+      // Grade level.
+      const gradeLevel = window.HLC_IMPORT.matchGradeLevel(pick(row, 'gradeLevel'), CFG.GRADE_LEVELS);
+      if (!gradeLevel) return { valid: false, error: 'Unknown grade: ' + row.gradeLevel };
 
-      const gender = window.HLC_IMPORT.normalizeGender(row.gender);
+      // Dates.
+      const enrollmentDate = window.HLC_IMPORT.toIsoDate(pick(row, 'enrollmentDate'));
+      if (!enrollmentDate) return { valid: false, error: 'Bad enrollmentDate: ' + row.enrollmentDate };
+      const birthDate = window.HLC_IMPORT.toIsoDate(pick(row, 'learner.birthDate'));
+      if (!birthDate) return { valid: false, error: 'Bad birthDate: ' + row['learner.birthDate'] };
+
+      // Gender — form accepts Male / Female / Other; the existing helper only
+      // normalizes M/F, so we accept "Other" verbatim too.
+      let gender = window.HLC_IMPORT.normalizeGender(pick(row, 'learner.gender'));
       if (gender !== 'Male' && gender !== 'Female') {
-        return { valid: false, error: 'Bad gender: ' + row.gender };
+        if (/^other$/i.test(String(pick(row, 'learner.gender')).trim())) gender = 'Other';
+        else return { valid: false, error: 'Bad gender: ' + row['learner.gender'] };
       }
 
-      return {
-        valid: true,
-        normalized: {
-          firstName:    String(row.firstName).trim(),
-          lastName:     String(row.lastName).trim(),
-          middleName:   String(row.middleName || '').trim(),
+      // Other info.
+      const shuttleService = parseImportBool(pick(row, 'other.shuttleService'));
+      const escGrantee     = parseImportBool(pick(row, 'other.escGrantee'));
+      let carpoolService = '';
+      if (shuttleService) {
+        carpoolService = normalizeCarpool(pick(row, 'other.carpoolService'));
+        if (!carpoolService) {
+          return { valid: false, error: 'Carpool Service is required when Shuttle Service is on' };
+        }
+      }
+
+      // Parents — at least one fully filled in (lastName/firstName/address/mobile).
+      // Same rule the form enforces. Treat any non-blank field in a block as
+      // "started"; if started, the four key fields are required.
+      const parentFields = ['lastName', 'firstName', 'middleName', 'homeAddress',
+                            'religion', 'mobileNumber', 'telephoneNumber'];
+      const parentBlock = (prefix) => {
+        const out = {};
+        let touched = false;
+        parentFields.forEach(f => {
+          const val = String(pick(row, prefix + '.' + f) || '').trim();
+          out[f] = val;
+          if (val) touched = true;
+        });
+        return { touched, data: out };
+      };
+      const father = parentBlock('father');
+      const mother = parentBlock('mother');
+      if (!father.touched && !mother.touched) {
+        return { valid: false, error: "At least one parent's information is required (Father or Mother)" };
+      }
+      for (const [label, p] of [['Father', father], ['Mother', mother]]) {
+        if (!p.touched) continue;
+        for (const req of ['lastName', 'firstName', 'homeAddress', 'mobileNumber']) {
+          if (!p.data[req]) {
+            return { valid: false, error: `${label}'s ${req} is required (or clear the entire ${label} section)` };
+          }
+        }
+      }
+
+      // Build the payload shape addStudentOnline() / POST /submit expects.
+      const payload = {
+        schoolYear:     String(pick(row, 'schoolYear')).trim(),
+        program,
+        gradeLevel,
+        enrollmentDate,
+        learner: {
+          lastName:           String(pick(row, 'learner.lastName')).trim(),
+          firstName:          String(pick(row, 'learner.firstName')).trim(),
+          middleName:         String(pick(row, 'learner.middleName') || '').trim(),
           birthDate,
           gender,
-          gradeLevel,
-          guardianName: String(row.guardianName).trim(),
-          contact:      String(row.contact).trim(),
-          address:      String(row.address).trim(),
-          notes:        String(row.notes || '').trim()
+          schoolLastAttended: String(pick(row, 'learner.schoolLastAttended') || '').trim()
+        },
+        other: {
+          shuttleService,
+          carpoolService,
+          escGrantee
+        },
+        emergency: {
+          fullName:     String(pick(row, 'emergency.fullName')).trim(),
+          mobileNumber: String(pick(row, 'emergency.mobileNumber')).trim(),
+          relationship: String(pick(row, 'emergency.relationship')).trim(),
+          homeAddress:  String(pick(row, 'emergency.homeAddress')).trim()
         }
       };
+      if (father.touched) payload.father = father.data;
+      if (mother.touched) payload.mother = mother.data;
+
+      return { valid: true, normalized: payload };
     },
     subjects: (row) => {
       if (!row.name || !String(row.name).trim()) return { valid: false, error: 'Missing name' };
@@ -1292,10 +1499,59 @@
   // Headers used in the downloadable .xlsx template and sample-row preview.
   const IMPORT_TEMPLATES = {
     students: {
-      headers: ['firstName', 'middleName', 'lastName', 'birthDate', 'gender', 'gradeLevel', 'guardianName', 'contact', 'address', 'notes'],
+      headers: [
+        // 1. Enrollment information
+        'enrollmentDate', 'schoolYear', 'program', 'gradeLevel',
+        // 2. Learner's information
+        'learner.lastName', 'learner.firstName', 'learner.middleName',
+        'learner.birthDate', 'learner.gender', 'learner.schoolLastAttended',
+        // 3. Other information
+        'other.shuttleService', 'other.carpoolService', 'other.escGrantee',
+        // 4. Father's information
+        'father.lastName', 'father.firstName', 'father.middleName',
+        'father.homeAddress', 'father.religion',
+        'father.mobileNumber', 'father.telephoneNumber',
+        // 5. Mother's information
+        'mother.lastName', 'mother.firstName', 'mother.middleName',
+        'mother.homeAddress', 'mother.religion',
+        'mother.mobileNumber', 'mother.telephoneNumber',
+        // 6. Emergency contact
+        'emergency.fullName', 'emergency.relationship',
+        'emergency.mobileNumber', 'emergency.homeAddress'
+      ],
       samples: [
-        { firstName: 'Maria', middleName: 'Santos', lastName: 'Cruz', birthDate: '2014-05-12', gender: 'Female', gradeLevel: 'Grade 5', guardianName: 'Ana Cruz', contact: '09171234567', address: '123 Mabini St', notes: '' },
-        { firstName: 'Juan',  middleName: '',       lastName: 'Reyes', birthDate: '2013-08-22', gender: 'Male',   gradeLevel: 'Grade 6', guardianName: 'Pedro Reyes', contact: '09180000000', address: '45 Rizal Ave',  notes: '' }
+        {
+          'enrollmentDate': '2025-06-01', 'schoolYear': '2025-2026',
+          'program': 'Elementary', 'gradeLevel': 'Grade 5',
+          'learner.lastName': 'Cruz', 'learner.firstName': 'Maria', 'learner.middleName': 'Santos',
+          'learner.birthDate': '2014-05-12', 'learner.gender': 'Female',
+          'learner.schoolLastAttended': 'St. Mary Academy',
+          'other.shuttleService': 'no', 'other.carpoolService': '', 'other.escGrantee': 'no',
+          'father.lastName': 'Cruz', 'father.firstName': 'Pedro', 'father.middleName': 'Reyes',
+          'father.homeAddress': '123 Mabini St, Quezon City', 'father.religion': 'Catholic',
+          'father.mobileNumber': '09171234567', 'father.telephoneNumber': '',
+          'mother.lastName': 'Cruz', 'mother.firstName': 'Ana', 'mother.middleName': 'Santos',
+          'mother.homeAddress': '123 Mabini St, Quezon City', 'mother.religion': 'Catholic',
+          'mother.mobileNumber': '09180000000', 'mother.telephoneNumber': '',
+          'emergency.fullName': 'Lucia Santos', 'emergency.relationship': 'Aunt',
+          'emergency.mobileNumber': '09190000000', 'emergency.homeAddress': '5 Rizal Ave, Quezon City'
+        },
+        {
+          'enrollmentDate': '2025-06-01', 'schoolYear': '2025-2026',
+          'program': 'Junior High School', 'gradeLevel': 'Grade 7',
+          'learner.lastName': 'Reyes', 'learner.firstName': 'Juan', 'learner.middleName': '',
+          'learner.birthDate': '2012-08-22', 'learner.gender': 'Male',
+          'learner.schoolLastAttended': '',
+          'other.shuttleService': 'yes', 'other.carpoolService': 'morning', 'other.escGrantee': 'yes',
+          'father.lastName': '', 'father.firstName': '', 'father.middleName': '',
+          'father.homeAddress': '', 'father.religion': '',
+          'father.mobileNumber': '', 'father.telephoneNumber': '',
+          'mother.lastName': 'Reyes', 'mother.firstName': 'Carla', 'mother.middleName': 'Dela Cruz',
+          'mother.homeAddress': '45 Rizal Ave, Manila', 'mother.religion': '',
+          'mother.mobileNumber': '09221112222', 'mother.telephoneNumber': '',
+          'emergency.fullName': 'Roberto Reyes', 'emergency.relationship': 'Uncle',
+          'emergency.mobileNumber': '09223334444', 'emergency.homeAddress': '45 Rizal Ave, Manila'
+        }
       ]
     },
     subjects: {
@@ -1404,8 +1660,24 @@
       mappingBox.appendChild(row);
     }
     if (mapping.missingCanonical.length) {
+      // Optional canonical fields per kind — these missing won't fail the
+      // import on their own (they're either truly optional in the form, or
+      // conditional / part of an optional parent block).
       const optional = kind === 'students'
-        ? new Set(['middleName', 'notes'])
+        ? new Set([
+            'learner.middleName', 'learner.schoolLastAttended',
+            'other.shuttleService', 'other.carpoolService', 'other.escGrantee',
+            // Either father OR mother is required, not both — so all parent
+            // fields are individually "optional" at the header level; the
+            // row-level validator enforces the at-least-one rule and any
+            // started-but-incomplete block.
+            'father.lastName', 'father.firstName', 'father.middleName',
+            'father.homeAddress', 'father.religion',
+            'father.mobileNumber', 'father.telephoneNumber',
+            'mother.lastName', 'mother.firstName', 'mother.middleName',
+            'mother.homeAddress', 'mother.religion',
+            'mother.mobileNumber', 'mother.telephoneNumber'
+          ])
         : new Set(['description']);
       const missingRequired = mapping.missingCanonical.filter(c => !optional.has(c));
       if (missingRequired.length) {
@@ -1428,7 +1700,7 @@
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     const cols = kind === 'students'
-      ? ['First', 'Last', 'Grade', 'Birth date', 'Guardian', 'Status']
+      ? ['First', 'Last', 'Program', 'Grade', 'Birth date', 'Parent', 'Status']
       : ['Name', 'Grade', 'Status'];
     cols.forEach(c => headRow.appendChild(U.el('th', {}, c)));
     thead.appendChild(headRow);
@@ -1439,13 +1711,36 @@
       const tr = document.createElement('tr');
       if (!r.valid) tr.className = 'invalid';
       if (kind === 'students') {
+        // For valid rows, read off the normalized payload (form-shape).
+        // For invalid rows, fall back to the raw aliased values so users
+        // can see what they typed.
         const n = r.normalized || {};
-        const a = r.aliased || {};
-        tr.appendChild(U.el('td', {}, n.firstName    || a.firstName    || '—'));
-        tr.appendChild(U.el('td', {}, n.lastName     || a.lastName     || '—'));
-        tr.appendChild(U.el('td', {}, n.gradeLevel   || (a.gradeLevel != null ? String(a.gradeLevel) : '—')));
-        tr.appendChild(U.el('td', {}, n.birthDate    || (a.birthDate  != null ? String(a.birthDate)  : '—')));
-        tr.appendChild(U.el('td', {}, n.guardianName || a.guardianName || '—'));
+        const a = r.aliased    || {};
+        const learner = n.learner || {};
+        const firstName = learner.firstName || a['learner.firstName'] || '—';
+        const lastName  = learner.lastName  || a['learner.lastName']  || '—';
+        const program   = n.program         || a.program              || '—';
+        const grade     = n.gradeLevel      || (a.gradeLevel != null ? String(a.gradeLevel) : '—');
+        const birth     = learner.birthDate || (a['learner.birthDate'] != null ? String(a['learner.birthDate']) : '—');
+        // Show whichever parent is on the row, mirroring the form's
+        // "primary parent" back-fill (father preferred, else mother).
+        let parent = '—';
+        const fName = (n.father && [n.father.firstName, n.father.lastName].filter(Boolean).join(' ')) || '';
+        const mName = (n.mother && [n.mother.firstName, n.mother.lastName].filter(Boolean).join(' ')) || '';
+        if (fName) parent = fName + ' (Father)';
+        else if (mName) parent = mName + ' (Mother)';
+        else {
+          const fa = [a['father.firstName'], a['father.lastName']].filter(Boolean).join(' ');
+          const ma = [a['mother.firstName'], a['mother.lastName']].filter(Boolean).join(' ');
+          if (fa) parent = fa + ' (Father)';
+          else if (ma) parent = ma + ' (Mother)';
+        }
+        tr.appendChild(U.el('td', {}, firstName));
+        tr.appendChild(U.el('td', {}, lastName));
+        tr.appendChild(U.el('td', {}, program));
+        tr.appendChild(U.el('td', {}, grade));
+        tr.appendChild(U.el('td', {}, birth));
+        tr.appendChild(U.el('td', {}, parent));
         tr.appendChild(U.el('td', {}, r.valid ? '✓' : (r.error || 'invalid')));
       } else {
         const n = r.normalized || {};
@@ -1462,20 +1757,45 @@
     commitBtn.disabled = validCount === 0;
   }
 
-  function commitImport(kind) {
+  async function commitImport(kind) {
     const cached = importCache[kind];
     if (!cached) return U.toast('Preview first', 'error');
     const valid = cached.results.filter(r => r.valid);
     if (!valid.length) return U.toast('No valid rows to import', 'error');
 
+    const commitBtn = document.querySelector(`[data-import-commit="${kind}"]`);
+    const originalLabel = commitBtn ? commitBtn.textContent : '';
     let createdCount = 0;
     let skipped = 0;
+    const failures = [];   // { row, message } — collected so users can see why
 
     if (kind === 'students') {
-      valid.forEach(r => {
-        addStudent(r.normalized);
-        createdCount++;
-      });
+      // Students go through the same /api/online-enrollment/submit + auto-
+      // approve path the manual form uses, so they end up with proper
+      // guardian rows, enrollment metadata, and the same auto-fee
+      // application as a registrar-entered enrollment. Documents are NOT
+      // imported (they're file uploads, not spreadsheet columns) — the
+      // registrar can attach them later from the Records screen.
+      if (commitBtn) { commitBtn.disabled = true; commitBtn.textContent = 'Importing…'; }
+      for (let i = 0; i < valid.length; i++) {
+        const r = valid[i];
+        try {
+          await addStudentOnline(r.normalized, []);
+          createdCount++;
+        } catch (err) {
+          const learner = (r.normalized && r.normalized.learner) || {};
+          const label = (learner.firstName || '') + ' ' + (learner.lastName || '');
+          failures.push({
+            row: label.trim() || ('Row ' + (i + 1)),
+            message: (err && err.message) || 'submit failed'
+          });
+        }
+      }
+      if (commitBtn) commitBtn.textContent = originalLabel || 'Import';
+      // Refresh the students cache so the new records appear in the table.
+      if (window.HLC_STORAGE && window.HLC_STORAGE.bootstrap) {
+        try { await window.HLC_STORAGE.bootstrap(); } catch (_) {}
+      }
     } else if (kind === 'subjects') {
       const existing = Subjects.getAll();
       valid.forEach(r => {
@@ -1493,19 +1813,49 @@
       });
     }
 
-    logActivity('registrar', `import.${kind}`, `${createdCount} created${skipped ? ', ' + skipped + ' duplicates skipped' : ''}`);
-    const msg = skipped
-      ? `Imported ${createdCount} ${kind} (${skipped} duplicates skipped)`
-      : `Imported ${createdCount} ${kind}`;
-    U.toast(msg, 'success');
+    const failedCount = failures.length;
+    logActivity('registrar', `import.${kind}`,
+      `${createdCount} created` +
+      (skipped ? ', ' + skipped + ' duplicates skipped' : '') +
+      (failedCount ? ', ' + failedCount + ' failed' : '')
+    );
 
-    // Clear inputs + preview
-    $('#ta-' + kind).value = '';
-    importFiles[kind] = null;
-    updateFileName(kind);
-    $('#preview-' + kind).style.display = 'none';
-    document.querySelector(`[data-import-commit="${kind}"]`).disabled = true;
-    importCache[kind] = null;
+    let msg = `Imported ${createdCount} ${kind}`;
+    if (skipped)     msg += ` (${skipped} duplicates skipped)`;
+    if (failedCount) msg += ` — ${failedCount} failed`;
+    U.toast(msg, failedCount && !createdCount ? 'error' : 'success');
+
+    // Surface per-row failures in the preview so the user can fix and retry,
+    // instead of silently dropping them.
+    if (failedCount) {
+      const previewHost = $('#preview-' + kind);
+      if (previewHost) {
+        const box = U.el('div', { class: 'mapping', style: 'margin-top:10px;border-color:var(--danger,#c0392b);' });
+        box.appendChild(U.el('strong', {}, `${failedCount} row(s) failed to import:`));
+        const ul = document.createElement('ul');
+        ul.style.margin = '6px 0 0 18px';
+        failures.forEach(f => {
+          const li = document.createElement('li');
+          li.textContent = `${f.row}: ${f.message}`;
+          ul.appendChild(li);
+        });
+        box.appendChild(ul);
+        previewHost.appendChild(box);
+      }
+    }
+
+    // Clear inputs + preview only on success (so failures stay visible).
+    if (!failedCount) {
+      $('#ta-' + kind).value = '';
+      importFiles[kind] = null;
+      updateFileName(kind);
+      $('#preview-' + kind).style.display = 'none';
+      if (commitBtn) commitBtn.disabled = true;
+      importCache[kind] = null;
+    } else if (commitBtn) {
+      // Keep the button enabled so they can re-try after fixing rows.
+      commitBtn.disabled = false;
+    }
 
     if (kind === 'students') renderDashboard();
     if (kind === 'subjects') renderSubjectsList();
@@ -1692,6 +2042,834 @@
     });
   }
 
+  // ============================================================
+  // ----------- Edit & Delete Student (Directory) --------------
+  // ============================================================
+  // Both flows share a small helper: refresh every view that reads from
+  // the Students cache so the directory, dashboard, and Student GSA all
+  // reflect the change without a page reload. The cache is updated
+  // optimistically by Students.update / Students.remove (see
+  // storage.js#createCollection) so we can re-render synchronously here.
+  function refreshAllStudentViews() {
+    renderStudentTable($('#students-search').value);
+    renderDashboard();
+    if ($('#view-gsa').classList.contains('active')) {
+      renderGSA($('#gsa-search').value);
+    }
+  }
+
+  let pendingEditStudentId = null;
+  // The hydrated submission record (parents + emergency + documents).
+  // Loaded via GET /api/online-enrollment/submissions/:id when the modal
+  // opens. Held here so save can diff against the original to detect which
+  // guardian blocks the user actually changed.
+  let editStudentExtras = null;
+
+  // ── Required document types (mirror of the backend enum). The labels
+  //    are friendly versions for the checklist UI; the keys must match
+  //    what the backend's REQUIRED_DOCUMENT_TYPES expects. ──
+  const REQUIRED_DOC_TYPES = [
+    { key: 'affidavit_of_undertaking', label: 'Affidavit of Undertaking' },
+    { key: 'report_card',              label: 'Report Card' },
+    { key: 'good_moral',               label: 'Good Moral Certificate' },
+    { key: 'psa_birth_certificate',    label: 'PSA Birth Certificate' },
+    { key: 'doctors_advice',           label: "Doctor's Advice" },
+    { key: 'sbt_result',               label: 'SBT Result' },
+    { key: 'flu_vaccine_certificate',  label: 'Flu Vaccine Certificate' },
+    { key: 'valid_id',                 label: 'Valid ID' }
+  ];
+
+  /**
+   * Sync visibility of the carpool-service field with the shuttle-service
+   * checkbox. Re-used from a couple of code paths so it lives as its own
+   * helper.
+   */
+  function syncCarpoolVisibility() {
+    const on = $('#es-shuttleService').checked;
+    $('#es-carpool-wrap').style.display = on ? '' : 'none';
+    if (!on) $('#es-carpoolService').value = '';
+  }
+
+  /**
+   * Refresh the document checklist with a clean, pill-style design.
+   *
+   * Each row shows one of three states:
+   *
+   *   - GREEN "✓ UPLOADED"   → digital file on file. Shows filename and
+   *                            a Replace button to swap the file.
+   *   - BLUE  "✓ ON FILE (PHYSICAL)" → registrar logged a paper drop-off.
+   *                            Shows who received it and when, with an
+   *                            Unmark button. The row can ALSO be
+   *                            digitized by uploading a scan — that
+   *                            transitions it back to UPLOADED.
+   *   - RED   "MISSING"      → nothing on file. Shows TWO actions:
+   *                            a Choose File input (digital upload),
+   *                            and a "Mark as Received" link for the
+   *                            physical-drop-off flow.
+   *
+   * The status-gate counts both UPLOADED and PHYSICAL toward approval
+   * readiness — the backend's missingRequiredDocuments() helper just
+   * checks for row presence, regardless of receivedMethod.
+   */
+  function buildDocumentChecklist(documents) {
+    const host = $('#es-doc-checklist');
+    U.clearNode(host);
+    const docs = documents || [];
+    const byType = {};
+    docs.forEach(d => { byType[d.documentType] = d; });
+    const presentCount = REQUIRED_DOC_TYPES.filter(d => byType[d.key]).length;
+
+    // Header counter.
+    const counterEl = $('#es-doc-count');
+    counterEl.textContent =
+      `${presentCount} / ${REQUIRED_DOC_TYPES.length} on file`;
+    counterEl.style.color = presentCount === REQUIRED_DOC_TYPES.length
+      ? '#2e7d32' : 'var(--ink-500)';
+    counterEl.style.fontWeight = presentCount === REQUIRED_DOC_TYPES.length
+      ? '600' : '400';
+
+    REQUIRED_DOC_TYPES.forEach(d => {
+      const existing = byType[d.key];
+      const isPhysical = existing && existing.receivedMethod === 'physical';
+      const isUploaded = existing && existing.receivedMethod === 'uploaded';
+
+      // Background / border tint depends on state.
+      let bg, border;
+      if (isUploaded)      { bg = '#f4faf5'; border = '#cde9d4'; }
+      else if (isPhysical) { bg = '#f0f6fc'; border = '#cfdef0'; }
+      else                 { bg = '#fef7f7'; border = '#f3d4d4'; }
+
+      const row = document.createElement('div');
+      row.style.cssText =
+        'display:flex;align-items:center;flex-wrap:wrap;gap:10px;' +
+        'padding:8px 12px;background:' + bg + ';' +
+        'border:1px solid ' + border + ';border-radius:4px;font-size:0.88rem;';
+
+      // Document name on the left.
+      const labelEl = document.createElement('span');
+      labelEl.style.cssText = 'flex:1;min-width:160px;font-weight:500;color:var(--ink-900);';
+      labelEl.textContent = d.label;
+      row.appendChild(labelEl);
+
+      if (isUploaded) {
+        // ── UPLOADED state ──
+        appendUploadedRow(row, d, existing);
+      } else if (isPhysical) {
+        // ── PHYSICAL state ──
+        appendPhysicalRow(row, d, existing);
+      } else {
+        // ── MISSING state ──
+        appendMissingRow(row, d);
+      }
+
+      host.appendChild(row);
+    });
+
+    refreshStatusGate();
+  }
+
+  /** Render the right-hand actions for an UPLOADED doc row. */
+  function appendUploadedRow(row, d, doc) {
+    const fnameEl = document.createElement('span');
+    fnameEl.style.cssText =
+      'font-size:0.78rem;color:var(--ink-500);max-width:200px;' +
+      'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    fnameEl.title = doc.originalName || '';
+    fnameEl.textContent = doc.originalName || '';
+    row.appendChild(fnameEl);
+
+    const pill = document.createElement('span');
+    pill.style.cssText =
+      'display:inline-flex;align-items:center;gap:4px;' +
+      'padding:2px 9px;border-radius:10px;font-size:0.72rem;' +
+      'font-weight:600;background:#2e7d32;color:#fff;' +
+      'letter-spacing:0.02em;';
+    pill.textContent = '✓ UPLOADED';
+    row.appendChild(pill);
+
+    // Replace button → hidden file input, auto-upload on change.
+    const replaceInput = document.createElement('input');
+    replaceInput.type = 'file';
+    replaceInput.style.display = 'none';
+    replaceInput.addEventListener('change', () => {
+      if (replaceInput.files && replaceInput.files[0]) {
+        uploadOneDocument(replaceInput, d.key);
+      }
+    });
+
+    const replaceBtn = document.createElement('button');
+    replaceBtn.type = 'button';
+    replaceBtn.setAttribute('type', 'button');
+    replaceBtn.className = 'btn btn-ghost btn-sm';
+    replaceBtn.style.cssText = 'padding:3px 9px;font-size:0.72rem;';
+    replaceBtn.textContent = 'Replace';
+    replaceBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      replaceInput.click();
+    });
+    row.appendChild(replaceInput);
+    row.appendChild(replaceBtn);
+  }
+
+  /** Render the right-hand actions for a PHYSICAL doc row. */
+  function appendPhysicalRow(row, d, doc) {
+    // Show receipt metadata: "Received by X · MMM DD".
+    const metaParts = [];
+    if (doc.receivedBy) metaParts.push('Received by ' + doc.receivedBy);
+    if (doc.receivedAt) metaParts.push(U.formatDate(doc.receivedAt));
+    if (metaParts.length) {
+      const meta = document.createElement('span');
+      meta.style.cssText =
+        'font-size:0.76rem;color:var(--ink-500);max-width:240px;' +
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      meta.title = metaParts.join(' · ');
+      meta.textContent = metaParts.join(' · ');
+      row.appendChild(meta);
+    }
+
+    const pill = document.createElement('span');
+    pill.style.cssText =
+      'display:inline-flex;align-items:center;gap:4px;' +
+      'padding:2px 9px;border-radius:10px;font-size:0.72rem;' +
+      'font-weight:600;background:#1565c0;color:#fff;' +
+      'letter-spacing:0.02em;';
+    pill.textContent = '✓ ON FILE (PHYSICAL)';
+    row.appendChild(pill);
+
+    // "Scan & Upload" — turns a physical row into an uploaded one. The
+    // backend's UPSERT in attachDocuments() flips received_method back
+    // to 'uploaded' automatically.
+    const scanInput = document.createElement('input');
+    scanInput.type = 'file';
+    scanInput.style.display = 'none';
+    scanInput.addEventListener('change', () => {
+      if (scanInput.files && scanInput.files[0]) {
+        uploadOneDocument(scanInput, d.key);
+      }
+    });
+    const scanBtn = document.createElement('button');
+    scanBtn.type = 'button';
+    scanBtn.setAttribute('type', 'button');
+    scanBtn.className = 'btn btn-ghost btn-sm';
+    scanBtn.style.cssText = 'padding:3px 9px;font-size:0.72rem;';
+    scanBtn.textContent = 'Attach Scan';
+    scanBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      scanInput.click();
+    });
+    row.appendChild(scanInput);
+    row.appendChild(scanBtn);
+
+    // Unmark — pure physical rows are deleted entirely (back to Missing);
+    // hybrid rows (file + physical metadata) just clear the metadata.
+    const unmarkBtn = document.createElement('button');
+    unmarkBtn.type = 'button';
+    unmarkBtn.setAttribute('type', 'button');
+    unmarkBtn.className = 'btn btn-ghost btn-sm';
+    unmarkBtn.style.cssText =
+      'padding:3px 9px;font-size:0.72rem;color:var(--danger,#c0392b);';
+    unmarkBtn.textContent = 'Unmark';
+    unmarkBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      unmarkPhysical(d.key);
+    });
+    row.appendChild(unmarkBtn);
+  }
+
+  /** Render the right-hand actions for a MISSING doc row. */
+  function appendMissingRow(row, d) {
+    const pill = document.createElement('span');
+    pill.style.cssText =
+      'display:inline-flex;align-items:center;' +
+      'padding:2px 9px;border-radius:10px;font-size:0.72rem;' +
+      'font-weight:600;background:#c0392b;color:#fff;' +
+      'letter-spacing:0.02em;';
+    pill.textContent = 'MISSING';
+    row.appendChild(pill);
+
+    // File input auto-uploads on change (digital path).
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.dataset.doctype = d.key;
+    fileInput.style.cssText =
+      'font-size:0.75rem;max-width:170px;cursor:pointer;';
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        uploadOneDocument(fileInput, d.key);
+      }
+    });
+    row.appendChild(fileInput);
+
+    // Or — physical drop-off path. A simple text-link button to keep
+    // the row visually uncluttered next to the file input.
+    const physBtn = document.createElement('button');
+    physBtn.type = 'button';
+    physBtn.setAttribute('type', 'button');
+    physBtn.className = 'btn btn-ghost btn-sm';
+    physBtn.style.cssText =
+      'padding:3px 9px;font-size:0.72rem;background:#fff;';
+    physBtn.textContent = 'Mark as Received (Physical)';
+    physBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      markPhysical(d.key);
+    });
+    row.appendChild(physBtn);
+  }
+
+  /**
+   * POST /api/online-enrollment/:id/documents/:type/mark-physical.
+   * The backend stamps the logged-in registrar as receivedBy, falling
+   * back to "registrar" if no email is on the token. We don't prompt
+   * for a name here — keeping the flow one-click — but the audit trail
+   * is preserved.
+   */
+  async function markPhysical(docType) {
+    if (!pendingEditStudentId) return;
+    const studentId = pendingEditStudentId;
+    try {
+      const data = await window.HLC_API.post(
+        '/api/online-enrollment/' + studentId +
+        '/documents/' + docType + '/mark-physical', {}
+      );
+      if (pendingEditStudentId !== studentId) return; // modal moved on
+
+      // Patch the local extras snapshot. The backend returned the single
+      // document row — splice it into our cached documents list.
+      if (data && data.document && editStudentExtras) {
+        const docs = (editStudentExtras.documents || []).slice();
+        const idx = docs.findIndex(x => x.documentType === docType);
+        if (idx === -1) docs.push(data.document);
+        else docs[idx] = data.document;
+        editStudentExtras.documents = docs;
+      }
+
+      // Defensive: re-assert open state in case anything in the await
+      // chain tried to close the modal.
+      $('#edit-student-modal').classList.add('open');
+      U.toast('Logged physical receipt', 'success');
+      buildDocumentChecklist(editStudentExtras && editStudentExtras.documents);
+    } catch (err) {
+      U.toast('Could not log receipt: ' +
+              (err.message || 'unknown error'), 'error');
+      $('#edit-student-modal').classList.add('open');
+    }
+  }
+
+  /**
+   * DELETE /api/online-enrollment/:id/documents/:type/mark-physical.
+   * Removes the physical-receipt mark. If the row was physical-only,
+   * the doc returns to MISSING. If it also had an uploaded file, the
+   * file is preserved and the row stays in UPLOADED state.
+   */
+  async function unmarkPhysical(docType) {
+    if (!pendingEditStudentId) return;
+    if (!confirm('Remove the physical-receipt mark for this document?')) return;
+    const studentId = pendingEditStudentId;
+    try {
+      const data = await window.HLC_API.del(
+        '/api/online-enrollment/' + studentId +
+        '/documents/' + docType + '/mark-physical'
+      );
+      if (pendingEditStudentId !== studentId) return;
+
+      // The DELETE response is just { removed, fullyDeleted } — we don't
+      // know the row's new state from that alone. Easiest: refresh the
+      // full submission so the document list is authoritative.
+      const full = await window.HLC_API.get(
+        '/api/online-enrollment/submissions/' + studentId
+      );
+      if (pendingEditStudentId !== studentId) return;
+      editStudentExtras = full;
+
+      $('#edit-student-modal').classList.add('open');
+      U.toast('Removed physical-receipt mark', 'success');
+      buildDocumentChecklist(full.documents);
+    } catch (err) {
+      U.toast('Could not unmark: ' +
+              (err.message || 'unknown error'), 'error');
+      $('#edit-student-modal').classList.add('open');
+    }
+  }
+
+  /**
+   * Upload a single document for the student currently in the edit modal.
+   * Multipart POST to /api/online-enrollment/:id/documents with the
+   * file's fieldname set to the document type — the backend's multer
+   * config (.any()) reads the fieldname to determine the type.
+   *
+   * On success, re-fetch the submission so the checklist refreshes with
+   * the new file marked ✓.
+   */
+  async function uploadOneDocument(input, docType) {
+    if (!pendingEditStudentId) return;
+    const file = input.files && input.files[0];
+    if (!file) return U.toast('Pick a file first', 'error');
+
+    // Snapshot the student ID so a closed-and-reopened modal can't
+    // leak the upload to the wrong record.
+    const studentId = pendingEditStudentId;
+
+    // Diagnostic logs — helps trace exactly what's happening if the
+    // upload misbehaves.
+    console.log('[upload] starting', { docType, fileName: file.name,
+                                       size: file.size, studentId });
+
+    const fd = new FormData();
+    fd.append(docType, file);
+    const url = window.HLC_API.BASE + '/api/online-enrollment/' +
+                studentId + '/documents';
+    console.log('[upload] POST', url);
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + window.HLC_API.getToken() },
+        body: fd
+      });
+      console.log('[upload] response status:', res.status);
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        console.error('[upload] failed:', e);
+        throw new Error(e.error || ('HTTP ' + res.status));
+      }
+      const data = await res.json();
+      console.log('[upload] success, documents:', data && data.documents);
+
+      // Modal might have closed between fetch start and finish (rare —
+      // e.g. user hit Cancel). Bail without re-rendering in that case.
+      if (pendingEditStudentId !== studentId) {
+        console.log('[upload] modal closed before response — skipping refresh');
+        return;
+      }
+
+      // Update the local extras snapshot so the checklist reflects the
+      // change without a full re-fetch.
+      if (data && Array.isArray(data.documents) && editStudentExtras) {
+        editStudentExtras.documents = data.documents;
+      }
+
+      // ── Defensive re-assertion ──
+      // Make absolutely certain the modal stays open and we stay in
+      // whatever view we were in. If some rogue handler tried to close
+      // the modal during the await, this restores it.
+      $('#edit-student-modal').classList.add('open');
+
+      U.toast(`Uploaded ${file.name}`, 'success');
+      buildDocumentChecklist(editStudentExtras && editStudentExtras.documents);
+    } catch (err) {
+      console.error('[upload] threw:', err);
+      U.toast('Upload failed: ' + (err.message || 'unknown error'), 'error');
+      // Even on failure, keep the modal open.
+      $('#edit-student-modal').classList.add('open');
+    }
+  }
+
+  /**
+   * Show/hide the inline warning under the Status dropdown depending on
+   * (a) the currently selected status and (b) whether all required
+   * documents are present. Disables the Save button when the selection
+   * would be rejected by the server.
+   */
+  function refreshStatusGate() {
+    const selected = $('#es-status').value;
+    const wantsApproval = (selected === 'approved' || selected === 'enrolled');
+    const docs = (editStudentExtras && editStudentExtras.documents) || [];
+    const present = new Set(docs.map(d => d.documentType));
+    const missing = REQUIRED_DOC_TYPES.filter(d => !present.has(d.key));
+    const wouldBlock = wantsApproval && missing.length > 0;
+
+    $('#es-status-warning').style.display = wouldBlock ? '' : 'none';
+    $('#es-submit').disabled = wouldBlock;
+    $('#es-submit').textContent = wouldBlock
+      ? 'Upload required documents to enable approval'
+      : 'Save Changes';
+  }
+
+  function openEditStudentModal(studentId) {
+    const s = Students.getById(studentId);
+    if (!s) return;
+    pendingEditStudentId = studentId;
+    editStudentExtras = null;
+
+    // ── Reset the modal ──
+    $('#es-title').textContent = `Edit Student — ${fullName(s)}`;
+    $('#es-id').value          = s.id;
+
+    // Learner core
+    $('#es-firstName').value          = s.firstName  || '';
+    $('#es-middleName').value         = s.middleName || '';
+    $('#es-lastName').value           = s.lastName   || '';
+    $('#es-gender').value             = s.gender     || '';
+    $('#es-birthDate').value          = s.birthDate  || '';
+    $('#es-schoolLastAttended').value = s.schoolLastAttended || '';
+
+    // Enrollment
+    $('#es-status').value         = s.status     || 'pending';
+    $('#es-gradeLevel').value     = s.gradeLevel || '';
+    $('#es-program').value        = s.program    || '';
+    $('#es-schoolYear').value     = s.schoolYear || '';
+    $('#es-enrollmentDate').value = s.enrollmentDate || '';
+    $('#es-shuttleService').checked = !!s.shuttleService;
+    $('#es-carpoolService').value = s.carpoolService || '';
+    $('#es-escGrantee').checked   = !!s.escGrantee;
+    syncCarpoolVisibility();
+
+    // Sections dropdown — rebuild every open so newly-created sections
+    // appear immediately. The student's existing section is pre-selected.
+    const secSel = $('#es-section');
+    U.clearNode(secSel);
+    secSel.appendChild(U.el('option', { value: '' }, '— Not assigned —'));
+    window.HLC_STORAGE.Sections.getAll().forEach(sec => {
+      const opt = U.el('option', { value: sec.id }, sec.name);
+      if (sec.id === s.section) opt.selected = true;
+      secSel.appendChild(opt);
+    });
+
+    // Guardian summary
+    $('#es-guardianName').value = s.guardianName || '';
+    $('#es-contact').value      = s.contact      || '';
+    $('#es-address').value      = s.address      || '';
+    $('#es-notes').value        = s.notes        || '';
+
+    // Clear all family blocks first, then fill once the fetch comes back.
+    $$('.es-guardian-block').forEach(blk => {
+      blk.querySelectorAll('input[data-gfield]').forEach(inp => { inp.value = ''; });
+      const status = blk.querySelector('.es-guardian-status');
+      if (status) status.textContent = '(loading…)';
+    });
+
+    // Document checklist starts in a loading state.
+    $('#es-doc-count').textContent = 'loading…';
+    U.clearNode($('#es-doc-checklist'));
+    $('#es-doc-checklist').appendChild(
+      U.el('div', { style: 'color:var(--ink-500);font-size:0.82rem;' },
+        'Loading document list…')
+    );
+    refreshStatusGate();
+
+    $('#edit-student-modal').classList.add('open');
+
+    // ── Async: hydrate parents + emergency + documents. ──
+    window.HLC_API.get('/api/online-enrollment/submissions/' + studentId)
+      .then(full => {
+        // The user may have closed the modal or switched students before
+        // the fetch resolved. Bail in that case.
+        if (pendingEditStudentId !== studentId) return;
+        editStudentExtras = full;
+
+        // Populate guardian blocks. `full.father / mother / emergency`
+        // come back from rowToGuardian — keys are camelCase.
+        ['father', 'mother', 'emergency'].forEach(type => {
+          const blk = document.querySelector(
+            `.es-guardian-block[data-type="${type}"]`
+          );
+          if (!blk) return;
+          const g = full[type] || {};
+          blk.querySelectorAll('input[data-gfield]').forEach(inp => {
+            const k = inp.dataset.gfield;
+            inp.value = g[k] || '';
+          });
+          const status = blk.querySelector('.es-guardian-status');
+          if (status) {
+            const hasData = ['firstName','lastName','fullName','homeAddress','mobileNumber']
+              .some(k => g[k]);
+            status.textContent = hasData ? '(on file)' : '(empty)';
+          }
+        });
+
+        buildDocumentChecklist(full.documents);
+      })
+      .catch(err => {
+        if (pendingEditStudentId !== studentId) return;
+        // Walk-in students or non-online enrollments may 404 — treat as
+        // empty extras so the rest of the modal still works.
+        editStudentExtras = { documents: [] };
+        $$('.es-guardian-block').forEach(blk => {
+          const status = blk.querySelector('.es-guardian-status');
+          if (status) status.textContent = '(empty)';
+        });
+        buildDocumentChecklist([]);
+        // Only toast if it wasn't a 404 — 404 is the expected "no record".
+        if (err && err.status && err.status !== 404) {
+          U.toast('Could not load family / document details', 'error');
+        }
+      });
+  }
+
+  function closeEditStudentModal() {
+    $('#edit-student-modal').classList.remove('open');
+    pendingEditStudentId = null;
+    editStudentExtras = null;
+    // Reset the save button in case it was disabled by the gate.
+    $('#es-submit').disabled = false;
+    $('#es-submit').textContent = 'Save Changes';
+  }
+
+  /**
+   * Collect guardian field values for a given type from the DOM. Returns
+   * an object with the same camelCase keys the backend expects.
+   */
+  function readGuardianBlock(type) {
+    const blk = document.querySelector(
+      `.es-guardian-block[data-type="${type}"]`
+    );
+    if (!blk) return {};
+    const out = {};
+    blk.querySelectorAll('input[data-gfield]').forEach(inp => {
+      out[inp.dataset.gfield] = inp.value.trim();
+    });
+    return out;
+  }
+
+  /**
+   * Returns true if two guardian objects differ on at least one field
+   * we care about. Used to decide whether to fire a guardian save.
+   */
+  function guardiansDiffer(before, after) {
+    const keys = ['firstName','middleName','lastName','fullName',
+                  'relationship','homeAddress','religion',
+                  'mobileNumber','telephoneNumber'];
+    for (const k of keys) {
+      const a = ((before && before[k]) || '').trim();
+      const b = ((after  && after[k])  || '').trim();
+      if (a !== b) return true;
+    }
+    return false;
+  }
+
+  async function submitEditStudent() {
+    if (!pendingEditStudentId) return;
+    const before = Students.getById(pendingEditStudentId);
+    if (!before) {
+      U.toast('Student no longer exists', 'error');
+      closeEditStudentModal();
+      refreshAllStudentViews();
+      return;
+    }
+
+    // Client-side gate: refuse to send an approval transition if docs
+    // are missing. The backend will refuse too, but bailing here gives
+    // a cleaner error message and avoids a wasted round-trip.
+    const wantsApprove = ($('#es-status').value === 'approved' ||
+                          $('#es-status').value === 'enrolled');
+    if (wantsApprove) {
+      const docs = (editStudentExtras && editStudentExtras.documents) || [];
+      const present = new Set(docs.map(d => d.documentType));
+      const missing = REQUIRED_DOC_TYPES.filter(d => !present.has(d.key));
+      const wasAlreadyApproved = (before.status === 'approved' ||
+                                  before.status === 'enrolled');
+      if (missing.length && !wasAlreadyApproved) {
+        return U.toast(
+          `Cannot approve — ${missing.length} document(s) still missing`,
+          'error'
+        );
+      }
+    }
+
+    // ── Build the student-level patch ──
+    const patch = {
+      firstName:          $('#es-firstName').value.trim(),
+      middleName:         $('#es-middleName').value.trim(),
+      lastName:           $('#es-lastName').value.trim(),
+      gender:             $('#es-gender').value,
+      birthDate:          $('#es-birthDate').value || '',
+      schoolLastAttended: $('#es-schoolLastAttended').value.trim(),
+      status:             $('#es-status').value,
+      program:            $('#es-program').value,
+      schoolYear:         $('#es-schoolYear').value.trim(),
+      enrollmentDate:     $('#es-enrollmentDate').value || '',
+      shuttleService:     $('#es-shuttleService').checked,
+      // Backend stores carpool as NULL when shuttle is off.
+      carpoolService:     $('#es-shuttleService').checked
+                            ? $('#es-carpoolService').value : '',
+      escGrantee:         $('#es-escGrantee').checked,
+      section:            $('#es-section').value,
+      guardianName:       $('#es-guardianName').value.trim(),
+      contact:            $('#es-contact').value.trim(),
+      address:            $('#es-address').value.trim(),
+      notes:              $('#es-notes').value.trim()
+    };
+
+    if (!patch.firstName) return U.toast('First name is required', 'error');
+    if (!patch.lastName)  return U.toast('Last name is required',  'error');
+    if (patch.schoolYear && !/^\d{4}-\d{4}$/.test(patch.schoolYear)) {
+      return U.toast('School Year format: YYYY-YYYY', 'error');
+    }
+
+    // ── Fire the student-level update (optimistic, see storage.js) ──
+    const updated = Students.update(pendingEditStudentId, patch);
+    if (!updated) {
+      U.toast('Could not save changes', 'error');
+      return;
+    }
+
+    // ── Fire guardian updates in parallel. We only send blocks the
+    //    user actually touched (otherwise an unchanged "empty" block
+    //    would needlessly trigger the delete branch on the backend). ──
+    const guardianTasks = [];
+    const guardianTypesSaved = [];
+    ['father', 'mother', 'emergency'].forEach(type => {
+      const after  = readGuardianBlock(type);
+      const beforeG = (editStudentExtras && editStudentExtras[type]) || null;
+      if (!guardiansDiffer(beforeG, after)) return;
+      guardianTypesSaved.push(type);
+      guardianTasks.push(
+        window.HLC_API.patch(
+          '/api/online-enrollment/submissions/' +
+            pendingEditStudentId + '/guardians/' + type,
+          after
+        ).catch(err => ({
+          // Don't reject the whole save just because one guardian failed.
+          _failed: true,
+          type,
+          message: err && err.message
+        }))
+      );
+    });
+
+    const guardianResults = await Promise.all(guardianTasks);
+    const guardianFailures = guardianResults.filter(r => r && r._failed);
+    const guardianSuccessCount = guardianResults.length - guardianFailures.length;
+
+    // ── Activity-log entry ──
+    const changedFields = Object.keys(patch).filter(k => {
+      const a = before[k] == null ? '' : String(before[k]);
+      const b = patch[k]  == null ? '' : String(patch[k]);
+      return a !== b;
+    });
+    const detailBits = [];
+    if (changedFields.length) detailBits.push(`updated: ${changedFields.join(', ')}`);
+    if (guardianSuccessCount) {
+      const okTypes = guardianTypesSaved.filter((_, i) => !(guardianResults[i] && guardianResults[i]._failed));
+      detailBits.push(`guardians: ${okTypes.join(', ')}`);
+    }
+    if (guardianFailures.length) {
+      detailBits.push(`${guardianFailures.length} guardian save(s) failed`);
+    }
+    const detail = detailBits.length
+      ? `${fullName(before)} — ${detailBits.join(' · ')}`
+      : `${fullName(before)} — no field changes`;
+    logActivity('registrar', 'student.edit', detail);
+
+    // ── User feedback ──
+    if (guardianFailures.length) {
+      U.toast(
+        `Saved student fields but ${guardianFailures.length} guardian save(s) failed — try again`,
+        'error'
+      );
+    } else {
+      U.toast(`Saved changes to ${fullName(updated)}`, 'success');
+      closeEditStudentModal();
+    }
+    refreshAllStudentViews();
+  }
+
+  function initEditStudentModal() {
+    $$('[data-close-edit]').forEach(b => b.addEventListener('click', closeEditStudentModal));
+    $('#edit-student-modal').addEventListener('click', e => {
+      if (e.target.id === 'edit-student-modal') closeEditStudentModal();
+    });
+    $('#es-submit').addEventListener('click', submitEditStudent);
+    $('#es-form').addEventListener('submit', e => {
+      e.preventDefault();
+      submitEditStudent();
+    });
+    // Live shuttle/carpool toggle.
+    $('#es-shuttleService').addEventListener('change', syncCarpoolVisibility);
+    // Live status gate.
+    $('#es-status').addEventListener('change', refreshStatusGate);
+  }
+
+  // ----------- Delete Student -----------
+  // Hard delete with a name-typing confirmation. FK ON DELETE CASCADE in
+  // the schema removes the student's charges, payments, payment_charges,
+  // subject assignments, family/document rows, etc. — so the GSA entry
+  // (which is a derived view of those rows) disappears too.
+  let pendingDeleteStudentId = null;
+
+  function openDeleteStudentModal(studentId) {
+    const s = Students.getById(studentId);
+    if (!s) return;
+    pendingDeleteStudentId = studentId;
+    $('#ds-title').textContent = 'Delete Student';
+    $('#ds-name').textContent  = fullName(s);
+    $('#ds-confirm').value = '';
+    $('#ds-submit').disabled = true;
+    $('#delete-student-modal').classList.add('open');
+    // Focus the confirm field so the user can start typing immediately.
+    setTimeout(() => $('#ds-confirm').focus(), 50);
+  }
+
+  function closeDeleteStudentModal() {
+    $('#delete-student-modal').classList.remove('open');
+    pendingDeleteStudentId = null;
+  }
+
+  function submitDeleteStudent() {
+    if (!pendingDeleteStudentId) return;
+    const s = Students.getById(pendingDeleteStudentId);
+    if (!s) {
+      U.toast('Student no longer exists', 'error');
+      closeDeleteStudentModal();
+      refreshAllStudentViews();
+      return;
+    }
+
+    // Defense-in-depth — the button is disabled until the typed name
+    // matches, but verify again here in case the user pasted via the
+    // keyboard handler race.
+    const typed = ($('#ds-confirm').value || '').trim().toLowerCase();
+    if (typed !== (s.lastName || '').trim().toLowerCase()) {
+      U.toast('Last name does not match — deletion cancelled', 'error');
+      return;
+    }
+
+    const name = fullName(s);
+    // Optimistic remove — Students.remove drops the row from the cache
+    // immediately and fires DELETE /api/students/:id in the background.
+    // If the server rejects, storage.js re-inserts the row and toasts.
+    const ok = Students.remove(pendingDeleteStudentId);
+    if (!ok) {
+      U.toast('Could not delete student', 'error');
+      return;
+    }
+
+    logActivity('registrar', 'student.delete',
+      `${name} (${s.gradeLevel}) — deleted along with charges, payments, and GSA`);
+    U.toast(`Deleted ${name}`, 'success');
+    closeDeleteStudentModal();
+    refreshAllStudentViews();
+  }
+
+  function initDeleteStudentModal() {
+    $$('[data-close-delete]').forEach(b => b.addEventListener('click', closeDeleteStudentModal));
+    $('#delete-student-modal').addEventListener('click', e => {
+      if (e.target.id === 'delete-student-modal') closeDeleteStudentModal();
+    });
+    // Enable the delete button only when the typed text matches the
+    // student's last name (case-insensitive). Done live on every keystroke.
+    $('#ds-confirm').addEventListener('input', () => {
+      if (!pendingDeleteStudentId) return;
+      const s = Students.getById(pendingDeleteStudentId);
+      if (!s) return;
+      const typed   = ($('#ds-confirm').value || '').trim().toLowerCase();
+      const target  = (s.lastName || '').trim().toLowerCase();
+      $('#ds-submit').disabled = !(typed && typed === target);
+    });
+    $('#ds-confirm').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !$('#ds-submit').disabled) {
+        e.preventDefault();
+        submitDeleteStudent();
+      }
+    });
+    $('#ds-submit').addEventListener('click', submitDeleteStudent);
+  }
+
   function init() {
     $('#page-meta').textContent = U.formatDateTime(new Date().toISOString());
 
@@ -1722,6 +2900,8 @@
     initSchoolYearForm();
     initBulkImport();
     initGradeChangeModal();
+    initEditStudentModal();
+    initDeleteStudentModal();
     renderDashboard();
   }
 

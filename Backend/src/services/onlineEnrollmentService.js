@@ -63,16 +63,30 @@ function rowToGuardian(row) {
 
 function rowToDocument(row) {
   if (!row) return null;
+  const isPhysical = row.received_method === 'physical';
   return {
-    id:           row.id,
-    documentType: row.document_type,
-    originalName: row.original_name,
-    // Authenticated download route (see routes.js). Kept as a single `url`
-    // field so an S3 swap (pre-signed URLs) stays invisible to the frontend.
-    url:          `/api/online-enrollment/documents/${row.id}/file`,
-    mimeType:     row.mime_type,
-    sizeBytes:    row.size_bytes,
-    uploadedAt:   toIso(row.uploaded_at)
+    id:             row.id,
+    documentType:   row.document_type,
+    receivedMethod: row.received_method || 'uploaded',
+    // ── Uploaded-only fields ──
+    // For physical-only rows these come back as null; the frontend uses
+    // receivedMethod to decide which UI to render. Once a scan is later
+    // uploaded for a previously-physical row, these populate naturally
+    // through the existing UPSERT in attachDocuments().
+    originalName:   row.original_name,
+    url:            isPhysical && !row.stored_path
+                      ? null
+                      : `/api/online-enrollment/documents/${row.id}/file`,
+    mimeType:       row.mime_type,
+    sizeBytes:      row.size_bytes,
+    uploadedAt:     toIso(row.uploaded_at),
+    // ── Physical-receipt fields ──
+    // Populated only when the registrar manually logged a paper drop-off.
+    // Preserved even if the row is later upgraded to 'uploaded', which
+    // is intentional — the audit trail of how the document first arrived
+    // is useful history.
+    receivedBy:     row.received_by || null,
+    receivedAt:     toIso(row.received_at)
   };
 }
 
@@ -210,14 +224,15 @@ async function attachDocuments(studentId, items) {
     await db.query(
       `INSERT INTO enrollment_documents (
           id, student_id, document_type, original_name,
-          stored_path, mime_type, size_bytes
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          stored_path, mime_type, size_bytes, received_method
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded')
        ON DUPLICATE KEY UPDATE
-          original_name = VALUES(original_name),
-          stored_path   = VALUES(stored_path),
-          mime_type     = VALUES(mime_type),
-          size_bytes    = VALUES(size_bytes),
-          uploaded_at   = NOW()`,
+          original_name   = VALUES(original_name),
+          stored_path     = VALUES(stored_path),
+          mime_type       = VALUES(mime_type),
+          size_bytes      = VALUES(size_bytes),
+          received_method = 'uploaded',
+          uploaded_at     = NOW()`,
       [
         generateId('doc'), studentId, documentType,
         file.originalname, storedPath, file.mimetype, file.size
@@ -245,6 +260,89 @@ async function getDocumentRow(documentId) {
   return db.queryOne('SELECT * FROM enrollment_documents WHERE id = ?', [documentId]);
 }
 
+// ─── Physical receipts ───────────────────────────────────────────────────
+//
+// When a parent drops requirement documents off at the registrar's desk
+// instead of uploading them, the registrar logs that here. The row uses
+// the same enrollment_documents table — just with NULL file fields and
+// received_method = 'physical'. The approval gate counts these the same
+// as uploaded ones, so a student with all-physical paperwork can be
+// approved without needing scans.
+//
+// A physical row can be "upgraded" later by uploading a scan: the UPSERT
+// in attachDocuments() fills the file fields and flips received_method
+// back to 'uploaded'. The original received_by / received_at columns
+// stay populated as audit history.
+
+async function markDocumentPhysical(studentId, documentType, receivedBy) {
+  if (!DOCUMENT_TYPES.includes(documentType)) {
+    throw new Error(`Unknown document type: ${documentType}`);
+  }
+  const student = await db.queryOne(
+    'SELECT id FROM students WHERE id = ?', [studentId]
+  );
+  if (!student) return null;
+
+  // UPSERT: if an uploaded row already exists for this (student, type),
+  // we leave the file in place and just update the receipt metadata —
+  // mark-as-physical on top of an uploaded doc effectively annotates
+  // "we ALSO have the paper original on file." If no row exists, we
+  // create a physical-only one with NULL file fields.
+  await db.query(
+    `INSERT INTO enrollment_documents (
+        id, student_id, document_type,
+        received_method, received_by, received_at
+     ) VALUES (?, ?, ?, 'physical', ?, NOW())
+     ON DUPLICATE KEY UPDATE
+        received_method = CASE
+          WHEN stored_path IS NOT NULL THEN received_method
+          ELSE 'physical'
+        END,
+        received_by = VALUES(received_by),
+        received_at = NOW()`,
+    [generateId('doc'), studentId, documentType, receivedBy || null]
+  );
+
+  const row = await db.queryOne(
+    'SELECT * FROM enrollment_documents WHERE student_id = ? AND document_type = ?',
+    [studentId, documentType]
+  );
+  return rowToDocument(row);
+}
+
+/**
+ * Remove a physical receipt mark. If the row is purely physical (no
+ * file), the whole row is deleted — that doc returns to the Missing
+ * state. If the row also has an uploaded file, we just clear the
+ * physical-receipt metadata and keep the file intact.
+ */
+async function unmarkDocumentPhysical(studentId, documentType) {
+  if (!DOCUMENT_TYPES.includes(documentType)) {
+    throw new Error(`Unknown document type: ${documentType}`);
+  }
+  const row = await db.queryOne(
+    'SELECT * FROM enrollment_documents WHERE student_id = ? AND document_type = ?',
+    [studentId, documentType]
+  );
+  if (!row) return { removed: false };
+
+  if (!row.stored_path) {
+    // Physical-only — drop the row entirely.
+    await db.query(
+      'DELETE FROM enrollment_documents WHERE id = ?', [row.id]
+    );
+    return { removed: true, fullyDeleted: true };
+  }
+  // Has an uploaded file too — just clear the physical-receipt fields.
+  await db.query(
+    `UPDATE enrollment_documents
+        SET received_method = 'uploaded', received_by = NULL, received_at = NULL
+      WHERE id = ?`,
+    [row.id]
+  );
+  return { removed: true, fullyDeleted: false };
+}
+
 // ─── Read / hydrate ──────────────────────────────────────────────────────
 
 async function getGuardians(studentId) {
@@ -253,6 +351,90 @@ async function getGuardians(studentId) {
     [studentId]
   );
   return rows.map(rowToGuardian);
+}
+
+// ─── Guardian upsert / delete (used by the registrar's edit modal) ───────
+
+const GUARDIAN_TYPES = ['father', 'mother', 'emergency'];
+
+/**
+ * Insert or update one guardian row for a student. The `(student_id,
+ * guardian_type)` unique key is the natural upsert target — re-saving the
+ * same parent block on the edit modal updates in place rather than
+ * creating duplicates.
+ *
+ * `data` accepts the same camelCase shape rowToGuardian emits so the
+ * frontend can echo back whatever it received from getSubmission().
+ *
+ * Returns the post-write guardian row (camelCase), or null if the
+ * student doesn't exist.
+ */
+async function upsertGuardian(studentId, guardianType, data) {
+  if (!GUARDIAN_TYPES.includes(guardianType)) {
+    throw new Error(`Unknown guardian type: ${guardianType}`);
+  }
+  const student = await db.queryOne(
+    'SELECT id FROM students WHERE id = ?', [studentId]
+  );
+  if (!student) return null;
+
+  const g = data || {};
+  // Empty strings → NULL so the column reads as 'unset' rather than ''.
+  const norm = (s) => {
+    if (s === undefined || s === null) return null;
+    const t = String(s).trim();
+    return t === '' ? null : t;
+  };
+
+  // INSERT ... ON DUPLICATE KEY UPDATE keeps the existing id stable if the
+  // row already exists, which avoids reshuffling primary keys on edits.
+  const newId = generateId('grd');
+  await db.query(
+    `INSERT INTO student_guardians (
+        id, student_id, guardian_type,
+        last_name, first_name, middle_name, full_name, relationship,
+        home_address, religion, mobile_number, telephone_number
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+        last_name        = VALUES(last_name),
+        first_name       = VALUES(first_name),
+        middle_name      = VALUES(middle_name),
+        full_name        = VALUES(full_name),
+        relationship     = VALUES(relationship),
+        home_address     = VALUES(home_address),
+        religion         = VALUES(religion),
+        mobile_number    = VALUES(mobile_number),
+        telephone_number = VALUES(telephone_number)`,
+    [
+      newId, studentId, guardianType,
+      norm(g.lastName), norm(g.firstName), norm(g.middleName),
+      norm(g.fullName), norm(g.relationship),
+      norm(g.homeAddress), norm(g.religion),
+      norm(g.mobileNumber), norm(g.telephoneNumber)
+    ]
+  );
+
+  const row = await db.queryOne(
+    'SELECT * FROM student_guardians WHERE student_id = ? AND guardian_type = ?',
+    [studentId, guardianType]
+  );
+  return rowToGuardian(row);
+}
+
+/**
+ * Delete a guardian row entirely. Used when the registrar clears a parent
+ * block on the edit modal — emptying every field shouldn't leave an
+ * all-NULL row behind. Returns true if a row was removed.
+ */
+async function removeGuardian(studentId, guardianType) {
+  if (!GUARDIAN_TYPES.includes(guardianType)) {
+    throw new Error(`Unknown guardian type: ${guardianType}`);
+  }
+  const [result] = await db.pool.execute(
+    'DELETE FROM student_guardians WHERE student_id = ? AND guardian_type = ?',
+    [studentId, guardianType]
+  );
+  return result.affectedRows > 0;
 }
 
 /**
@@ -384,6 +566,7 @@ const reject  = (studentId, opts) => review(studentId, 'rejected', opts);
 
 module.exports = {
   DOCUMENT_TYPES,
+  GUARDIAN_TYPES,
   submit,
   attachDocuments,
   getDocuments,
@@ -391,5 +574,9 @@ module.exports = {
   getSubmission,
   listPending,
   approve,
-  reject
+  reject,
+  upsertGuardian,
+  removeGuardian,
+  markDocumentPhysical,
+  unmarkDocumentPhysical
 };

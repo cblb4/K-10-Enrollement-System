@@ -78,6 +78,24 @@ router.post('/online-enrollment/submissions/:id/reject',
 router.get ('/online-enrollment/documents/:docId/file',
   requireAuth(), onlineEnroll.downloadDocument);
 
+// Guardian edit (father / mother / emergency). PATCH upserts the row;
+// emptying every field is treated as a delete so we don't leave stale
+// blank rows around. Used by the registrar's Edit Student modal.
+router.patch ('/online-enrollment/submissions/:id/guardians/:type',
+  requireAuth(), onlineEnroll.upsertGuardian);
+router.delete('/online-enrollment/submissions/:id/guardians/:type',
+  requireAuth(), onlineEnroll.deleteGuardian);
+
+// Physical-receipt tracking for requirement documents. POST records
+// that a paper copy was dropped off at the registrar; DELETE undoes it.
+// The row uses the same enrollment_documents table as uploaded files —
+// see services/onlineEnrollmentService.markDocumentPhysical() for the
+// upgrade-to-digital semantics.
+router.post  ('/online-enrollment/:id/documents/:type/mark-physical',
+  requireAuth(), onlineEnroll.markDocumentPhysical);
+router.delete('/online-enrollment/:id/documents/:type/mark-physical',
+  requireAuth(), onlineEnroll.unmarkDocumentPhysical);
+
 // ─── Students ────────────────────────────────────────────────────────────
 router.get   ('/students',        requireAuth(), students.list);
 router.post  ('/students',        requireAuth(), students.create);

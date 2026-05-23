@@ -184,6 +184,17 @@ const downloadDocument = asyncHandler(async (req, res) => {
   const row = await service.getDocumentRow(req.params.docId);
   if (!row) throw new HttpError(404, 'Document not found');
 
+  // Physical-only rows have no file to serve. Frontend already hides
+  // the link in that case (rowToDocument returns url=null), but if a
+  // direct request slips through we give a clear 404 rather than
+  // letting absolutePathFor crash on a null path.
+  if (!row.stored_path) {
+    throw new HttpError(
+      404,
+      'No file attached — this document was logged as physically received'
+    );
+  }
+
   const absPath = fileStorage.absolutePathFor(row.stored_path);
   if (!fs.existsSync(absPath)) {
     throw new HttpError(404, 'Document file is missing on the server');
@@ -196,6 +207,86 @@ const downloadDocument = asyncHandler(async (req, res) => {
   fs.createReadStream(absPath).pipe(res);
 });
 
+// ─── Registrar: edit a single guardian (father / mother / emergency) ─────
+//
+// Used by the Student Directory's Edit modal so the registrar can fix
+// parent / emergency contact details without re-submitting the whole
+// online form. PATCH because it's a partial upsert.
+
+const GUARDIAN_TYPES = ['father', 'mother', 'emergency'];
+
+const upsertGuardian = asyncHandler(async (req, res) => {
+  const { id, type } = req.params;
+  if (!GUARDIAN_TYPES.includes(type)) {
+    throw new HttpError(400, `Unknown guardian type: ${type}`);
+  }
+  // Soft validation — every field is optional, but if firstName/lastName
+  // and homeAddress are all empty we route to delete instead.
+  const body = req.body || {};
+  const everythingEmpty = !['lastName','firstName','middleName','fullName',
+                            'relationship','homeAddress','religion',
+                            'mobileNumber','telephoneNumber']
+      .some(k => body[k] && String(body[k]).trim());
+
+  if (everythingEmpty) {
+    const removed = await service.removeGuardian(id, type);
+    return res.json({ removed, guardian: null });
+  }
+
+  const guardian = await service.upsertGuardian(id, type, body);
+  if (!guardian) throw new HttpError(404, 'Student not found');
+  res.json({ guardian });
+});
+
+const deleteGuardian = asyncHandler(async (req, res) => {
+  const { id, type } = req.params;
+  if (!GUARDIAN_TYPES.includes(type)) {
+    throw new HttpError(400, `Unknown guardian type: ${type}`);
+  }
+  const removed = await service.removeGuardian(id, type);
+  res.json({ removed });
+});
+
+// ─── Registrar: log a physically-received document ───────────────────────
+// When a parent drops paperwork off at the desk, the registrar marks the
+// document type as received here. No file is uploaded; the row carries
+// the receiver's name and a timestamp so the audit trail is preserved.
+
+const markDocumentPhysical = asyncHandler(async (req, res) => {
+  const { id, type } = req.params;
+  // Use the logged-in registrar's email as a fall-back; the request can
+  // optionally override (e.g. "Received by Jane Doe at front desk").
+  const receivedBy = (req.body && req.body.receivedBy)
+    || (req.user && req.user.email)
+    || 'registrar';
+
+  let doc;
+  try {
+    doc = await service.markDocumentPhysical(id, type, receivedBy);
+  } catch (err) {
+    if (/Unknown document type/.test(err.message)) {
+      throw new HttpError(400, err.message);
+    }
+    throw err;
+  }
+  if (!doc) throw new HttpError(404, 'Student not found');
+  res.json({ document: doc });
+});
+
+const unmarkDocumentPhysical = asyncHandler(async (req, res) => {
+  const { id, type } = req.params;
+  let result;
+  try {
+    result = await service.unmarkDocumentPhysical(id, type);
+  } catch (err) {
+    if (/Unknown document type/.test(err.message)) {
+      throw new HttpError(400, err.message);
+    }
+    throw err;
+  }
+  res.json(result);
+});
+
 module.exports = {
   schoolYears,
   submit,
@@ -204,5 +295,9 @@ module.exports = {
   getSubmission,
   approve,
   reject,
-  downloadDocument
+  downloadDocument,
+  upsertGuardian,
+  deleteGuardian,
+  markDocumentPhysical,
+  unmarkDocumentPhysical
 };

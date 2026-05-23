@@ -435,9 +435,25 @@
         <div class="import-box" id="import-students">
           <h4>Students</h4>
           <div class="help">
-            Required columns: <code>firstName</code>, <code>lastName</code>, <code>birthDate</code> (YYYY-MM-DD), <code>gender</code>, <code>gradeLevel</code>, <code>guardianName</code>, <code>contact</code>, <code>address</code>.
-            Optional: <code>middleName</code>, <code>notes</code>.
-            Headers are matched loosely — &ldquo;First Name&rdquo;, &ldquo;FNAME&rdquo;, &ldquo;Date of Birth&rdquo; etc. all work.
+            Columns mirror the <strong>Enrollment Form</strong> (sections 1–6). Use dot-paths in headers — e.g.
+            <code>learner.firstName</code>, <code>father.mobileNumber</code>, <code>emergency.fullName</code>.
+            <br />
+            <strong>Required:</strong>
+            <code>enrollmentDate</code>, <code>schoolYear</code>, <code>program</code>, <code>gradeLevel</code>,
+            <code>learner.lastName</code>, <code>learner.firstName</code>,
+            <code>learner.birthDate</code> (YYYY-MM-DD), <code>learner.gender</code>,
+            <code>emergency.fullName</code>, <code>emergency.relationship</code>,
+            <code>emergency.mobileNumber</code>, <code>emergency.homeAddress</code>,
+            and <em>at least one parent</em> (Father or Mother) with last/first name, address, and mobile number.
+            <br />
+            <strong>Conditional:</strong> if <code>other.shuttleService</code> is <code>yes</code>, then
+            <code>other.carpoolService</code> (<code>none</code> / <code>morning</code> / <code>afternoon</code>) is required.
+            <br />
+            <strong>Optional:</strong> <code>learner.middleName</code>, <code>learner.schoolLastAttended</code>,
+            <code>other.shuttleService</code>, <code>other.escGrantee</code>, parent <code>middleName</code> / <code>religion</code> / <code>telephoneNumber</code>.
+            <br />
+            Headers are matched loosely — &ldquo;Father First Name&rdquo;, &ldquo;f_firstname&rdquo;, &ldquo;Date of Birth&rdquo;, etc. all work.
+            Required documents (PSA, Report Card, etc.) are <em>not</em> imported here — attach them per student afterwards.
           </div>
 
           <div class="import-source-row">
@@ -453,9 +469,9 @@
             Excel parser unavailable (likely offline) — only CSV/TSV uploads and pasted data will work.
           </div>
 
-          <textarea class="import-textarea" id="ta-students" placeholder="firstName	lastName	birthDate	gender	gradeLevel	guardianName	contact	address
-Maria	Cruz	2014-05-12	Female	Grade 5	Ana Cruz	09171234567	123 Mabini St
-Juan	Reyes	2013-08-22	Male	Grade 6	Pedro Reyes	09180000000	45 Rizal Ave"></textarea>
+          <textarea class="import-textarea" id="ta-students" placeholder="enrollmentDate	schoolYear	program	gradeLevel	learner.lastName	learner.firstName	learner.middleName	learner.birthDate	learner.gender	father.lastName	father.firstName	father.homeAddress	father.mobileNumber	mother.lastName	mother.firstName	mother.homeAddress	mother.mobileNumber	emergency.fullName	emergency.relationship	emergency.mobileNumber	emergency.homeAddress
+2025-06-01	2025-2026	Elementary	Grade 5	Cruz	Maria	Santos	2014-05-12	Female	Cruz	Pedro	123 Mabini St	09171234567	Cruz	Ana	123 Mabini St	09180000000	Lucia Santos	Aunt	09190000000	5 Rizal Ave
+2025-06-01	2025-2026	Junior High School	Grade 7	Reyes	Juan		2012-08-22	Male						Reyes	Carla	45 Rizal Ave	09221112222	Roberto Reyes	Uncle	09223334444	45 Rizal Ave"></textarea>
           <div class="import-actions">
             <button type="button" class="btn btn-ghost btn-sm" data-import-preview="students">Preview</button>
             <button type="button" class="btn btn-primary btn-sm" data-import-commit="students" disabled>Import</button>
@@ -567,6 +583,353 @@ English 7	Grade 7	"></textarea>
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-grade>Cancel</button>
         <button class="btn btn-primary" id="gc-submit">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Edit Student Modal ========== -->
+  <!-- A comprehensive editor covering every field shown in the View Student
+       modal: learner core, enrollment metadata, family blocks (father /
+       mother / emergency), and a live document-requirements checklist.
+       Approval is gated client-side AND server-side on document
+       completeness — see studentsService.update() in the backend. -->
+  <div class="modal-backdrop" id="edit-student-modal">
+    <div class="modal" style="max-width:880px;">
+      <div class="modal-header">
+        <h3 id="es-title">Edit Student</h3>
+        <button class="modal-close" data-close-edit>×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem; color:var(--ink-500); margin-bottom:14px;">
+          Update any field below — saves push to the database and propagate
+          to the Student GSA and other modules immediately. To change the
+          <strong>grade level</strong>, use the dedicated <em>Change Grade</em>
+          action so promotion / correction logic runs correctly.
+        </p>
+
+        <form id="es-form">
+          <input type="hidden" id="es-id" />
+
+          <!-- ── Section 1: Learner core info ───────────────────────── -->
+          <h4 style="margin:6px 0 10px;color:var(--maroon-800);font-size:0.95rem;
+                     border-bottom:1px solid var(--line);padding-bottom:6px;">
+            Learner Information
+          </h4>
+          <div class="form-grid">
+            <div class="field">
+              <label for="es-firstName">First Name <span style="color:var(--danger,#c0392b);">*</span></label>
+              <input type="text" id="es-firstName" maxlength="100" required />
+            </div>
+            <div class="field">
+              <label for="es-middleName">Middle Name</label>
+              <input type="text" id="es-middleName" maxlength="100" />
+            </div>
+            <div class="field">
+              <label for="es-lastName">Last Name <span style="color:var(--danger,#c0392b);">*</span></label>
+              <input type="text" id="es-lastName" maxlength="100" required />
+            </div>
+            <div class="field">
+              <label for="es-gender">Gender</label>
+              <select id="es-gender">
+                <option value="">— Select —</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="es-birthDate">Birth Date</label>
+              <input type="date" id="es-birthDate" />
+            </div>
+            <div class="field">
+              <label for="es-schoolLastAttended">School Last Attended</label>
+              <input type="text" id="es-schoolLastAttended" maxlength="200" />
+            </div>
+          </div>
+
+          <!-- ── Section 2: Enrollment metadata ─────────────────────── -->
+          <h4 style="margin:18px 0 10px;color:var(--maroon-800);font-size:0.95rem;
+                     border-bottom:1px solid var(--line);padding-bottom:6px;">
+            Enrollment
+          </h4>
+          <div class="form-grid">
+            <div class="field">
+              <label for="es-status">Status</label>
+              <select id="es-status">
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="enrolled">Enrolled</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <!-- Inline gate notice — only visible when the user selects
+                   approved/enrolled but documents are incomplete. -->
+              <div id="es-status-warning"
+                   style="display:none;margin-top:6px;padding:8px 10px;
+                          font-size:0.8rem;color:#842029;background:#fdecea;
+                          border-left:3px solid var(--danger,#c0392b);border-radius:3px;">
+                Cannot approve yet — required documents are missing
+                (see the checklist below).
+              </div>
+            </div>
+            <div class="field">
+              <label for="es-gradeLevel">Grade Level <span style="font-size:0.78rem;color:var(--ink-500);font-weight:400;">(read-only)</span></label>
+              <input type="text" id="es-gradeLevel" readonly
+                     style="background:var(--paper-2);cursor:not-allowed;" />
+            </div>
+            <div class="field">
+              <label for="es-program">Program</label>
+              <select id="es-program">
+                <option value="">— Select —</option>
+                <option value="Pre-School">Pre-School</option>
+                <option value="Elementary">Elementary</option>
+                <option value="Junior High School">Junior High School</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="es-schoolYear">School Year</label>
+              <input type="text" id="es-schoolYear" placeholder="e.g. 2025-2026"
+                     pattern="\d{4}-\d{4}" maxlength="20" />
+            </div>
+            <div class="field">
+              <label for="es-enrollmentDate">Enrollment Date</label>
+              <input type="date" id="es-enrollmentDate" />
+            </div>
+            <div class="field">
+              <label for="es-section">Section</label>
+              <select id="es-section">
+                <option value="">— Not assigned —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="es-shuttleService"
+                       style="width:auto;margin:0;" />
+                <span>Shuttle Service</span>
+              </label>
+            </div>
+            <div class="field" id="es-carpool-wrap">
+              <label for="es-carpoolService">Carpool Service</label>
+              <select id="es-carpoolService">
+                <option value="">— Select —</option>
+                <option value="none">Round Trip</option>
+                <option value="morning">One-Way — Morning</option>
+                <option value="afternoon">One-Way — Afternoon</option>
+              </select>
+            </div>
+            <div class="field">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="es-escGrantee"
+                       style="width:auto;margin:0;" />
+                <span>ESC Grantee</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- ── Section 3: Contact summary ─────────────────────────── -->
+          <h4 style="margin:18px 0 10px;color:var(--maroon-800);font-size:0.95rem;
+                     border-bottom:1px solid var(--line);padding-bottom:6px;">
+            Guardian Summary
+            <span style="font-weight:400;font-size:0.78rem;color:var(--ink-500);">
+              (legacy single-contact view — full family details below)
+            </span>
+          </h4>
+          <div class="form-grid">
+            <div class="field">
+              <label for="es-guardianName">Guardian Name</label>
+              <input type="text" id="es-guardianName" maxlength="200" />
+            </div>
+            <div class="field">
+              <label for="es-contact">Contact Number</label>
+              <input type="text" id="es-contact" maxlength="50" />
+            </div>
+            <div class="field full">
+              <label for="es-address">Address</label>
+              <input type="text" id="es-address" maxlength="400" />
+            </div>
+            <div class="field full">
+              <label for="es-notes">Notes</label>
+              <textarea id="es-notes" rows="3" maxlength="1000"
+                        style="resize:vertical;"></textarea>
+            </div>
+          </div>
+
+          <!-- ── Section 4: Family & emergency contact ──────────────── -->
+          <!-- Three identical blocks (father / mother / emergency) inside
+               <details> tags so they fold up by default. Each block's
+               fields share an es-{type}-{field} naming scheme. -->
+          <h4 style="margin:18px 0 10px;color:var(--maroon-800);font-size:0.95rem;
+                     border-bottom:1px solid var(--line);padding-bottom:6px;">
+            Family &amp; Emergency Contact
+          </h4>
+          <div id="es-family-blocks">
+            <!-- Father -->
+            <details class="es-guardian-block" data-type="father" style="margin-bottom:8px;">
+              <summary style="cursor:pointer;padding:8px 10px;background:var(--paper-2);
+                              border-radius:3px;font-weight:500;font-size:0.92rem;">
+                Father <span class="es-guardian-status" style="font-weight:400;
+                              font-size:0.78rem;color:var(--ink-500);margin-left:8px;"></span>
+              </summary>
+              <div class="form-grid" style="margin-top:10px;padding:0 4px 8px;">
+                <div class="field">
+                  <label>First Name</label>
+                  <input type="text" data-gfield="firstName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Middle Name</label>
+                  <input type="text" data-gfield="middleName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Last Name</label>
+                  <input type="text" data-gfield="lastName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Mobile Number</label>
+                  <input type="text" data-gfield="mobileNumber" maxlength="50" />
+                </div>
+                <div class="field">
+                  <label>Telephone</label>
+                  <input type="text" data-gfield="telephoneNumber" maxlength="50" />
+                </div>
+                <div class="field">
+                  <label>Religion</label>
+                  <input type="text" data-gfield="religion" maxlength="100" />
+                </div>
+                <div class="field full">
+                  <label>Home Address</label>
+                  <input type="text" data-gfield="homeAddress" maxlength="400" />
+                </div>
+              </div>
+            </details>
+
+            <!-- Mother -->
+            <details class="es-guardian-block" data-type="mother" style="margin-bottom:8px;">
+              <summary style="cursor:pointer;padding:8px 10px;background:var(--paper-2);
+                              border-radius:3px;font-weight:500;font-size:0.92rem;">
+                Mother <span class="es-guardian-status" style="font-weight:400;
+                              font-size:0.78rem;color:var(--ink-500);margin-left:8px;"></span>
+              </summary>
+              <div class="form-grid" style="margin-top:10px;padding:0 4px 8px;">
+                <div class="field">
+                  <label>First Name</label>
+                  <input type="text" data-gfield="firstName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Middle Name</label>
+                  <input type="text" data-gfield="middleName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Last Name</label>
+                  <input type="text" data-gfield="lastName" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Mobile Number</label>
+                  <input type="text" data-gfield="mobileNumber" maxlength="50" />
+                </div>
+                <div class="field">
+                  <label>Telephone</label>
+                  <input type="text" data-gfield="telephoneNumber" maxlength="50" />
+                </div>
+                <div class="field">
+                  <label>Religion</label>
+                  <input type="text" data-gfield="religion" maxlength="100" />
+                </div>
+                <div class="field full">
+                  <label>Home Address</label>
+                  <input type="text" data-gfield="homeAddress" maxlength="400" />
+                </div>
+              </div>
+            </details>
+
+            <!-- Emergency Contact -->
+            <details class="es-guardian-block" data-type="emergency" style="margin-bottom:8px;">
+              <summary style="cursor:pointer;padding:8px 10px;background:var(--paper-2);
+                              border-radius:3px;font-weight:500;font-size:0.92rem;">
+                Emergency Contact <span class="es-guardian-status" style="font-weight:400;
+                              font-size:0.78rem;color:var(--ink-500);margin-left:8px;"></span>
+              </summary>
+              <div class="form-grid" style="margin-top:10px;padding:0 4px 8px;">
+                <div class="field">
+                  <label>Full Name</label>
+                  <input type="text" data-gfield="fullName" maxlength="200" />
+                </div>
+                <div class="field">
+                  <label>Relationship</label>
+                  <input type="text" data-gfield="relationship" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label>Mobile Number</label>
+                  <input type="text" data-gfield="mobileNumber" maxlength="50" />
+                </div>
+                <div class="field">
+                  <label>Telephone</label>
+                  <input type="text" data-gfield="telephoneNumber" maxlength="50" />
+                </div>
+                <div class="field full">
+                  <label>Home Address</label>
+                  <input type="text" data-gfield="homeAddress" maxlength="400" />
+                </div>
+              </div>
+            </details>
+          </div>
+        </form>
+
+        <!-- ── Section 5: Documents requirement checklist ──────────
+             DELIBERATELY OUTSIDE <form id="es-form">. The file inputs
+             and Upload buttons here must never trigger form submission
+             or any other form-related side-effects. Having them inside
+             the form historically caused the modal to close unexpectedly
+             on upload, so this section is its own sibling block. -->
+        <h4 style="margin:18px 0 10px;color:var(--maroon-800);font-size:0.95rem;
+                   border-bottom:1px solid var(--line);padding-bottom:6px;">
+          Required Documents
+          <span id="es-doc-count" style="font-weight:400;font-size:0.82rem;
+                                        color:var(--ink-500);margin-left:6px;">
+            — / 8 uploaded
+          </span>
+        </h4>
+        <div id="es-doc-checklist"
+             style="display:flex;flex-direction:column;gap:6px;">
+          <!-- Populated by buildDocumentChecklist() in registrar.js -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-edit>Cancel</button>
+        <button class="btn btn-primary" id="es-submit">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Delete Student Confirmation Modal ========== -->
+  <div class="modal-backdrop" id="delete-student-modal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 id="ds-title">Delete Student</h3>
+        <button class="modal-close" data-close-delete>×</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:14px;font-size:0.95rem;color:var(--ink-700);">
+          You're about to permanently delete <strong id="ds-name">this student</strong>.
+        </p>
+        <div style="background:#fdf6f6;border-left:3px solid var(--danger,#c0392b);
+                    padding:12px 14px;margin-bottom:14px;font-size:0.86rem;color:var(--ink-700);">
+          <strong style="color:var(--danger,#c0392b);">This will also delete:</strong>
+          <ul style="margin:6px 0 0 18px;padding:0;">
+            <li>All charges &amp; fees applied to the student</li>
+            <li>All payment records linked to those charges</li>
+            <li>All subject assignments (the GSA entry)</li>
+            <li>Section assignment &amp; family/document records</li>
+          </ul>
+        </div>
+        <p style="font-size:0.85rem;color:var(--ink-500);margin-bottom:10px;">
+          To confirm, type the student's <strong>last name</strong> below.
+        </p>
+        <input type="text" id="ds-confirm" placeholder="Last name"
+               style="width:100%;padding:9px 12px;border:1px solid var(--line-strong);
+                      border-radius:3px;font-family:inherit;font-size:0.92rem;" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-delete>Cancel</button>
+        <button class="btn btn-danger" id="ds-submit" disabled>Delete Permanently</button>
       </div>
     </div>
   </div>
