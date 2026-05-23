@@ -26,6 +26,7 @@
 const db = require('../db');
 const { generateId } = require('../util');
 const settingsService = require('./settingsService');
+const studentsService = require('./studentsService');
 const fileStorage = require('./fileStorage');
 
 const DOCUMENT_TYPES = [
@@ -355,6 +356,25 @@ async function review(studentId, nextStatus, opts) {
       ]
     );
   });
+
+  // When an enrollment is approved, attach the school-wide + grade-specific
+  // auto-apply misc fees so the cashier has something to collect against.
+  // Runs OUTSIDE the status-update transaction so a fee-application error
+  // doesn't roll back the approval itself — at worst the registrar (or
+  // cashier) can retry via the "apply auto-fees" path. Idempotent: the
+  // service skips fees that are already on the student.
+  if (nextStatus === 'approved') {
+    try {
+      await studentsService.applySchoolWideFees(studentId);
+    } catch (err) {
+      // Log loudly but don't fail the approve response — the student IS
+      // approved at this point and the cashier can re-trigger.
+      console.error(
+        '[onlineEnrollmentService.review] auto-fee application failed for',
+        studentId, '—', err && err.message
+      );
+    }
+  }
 
   return getSubmission(studentId);
 }

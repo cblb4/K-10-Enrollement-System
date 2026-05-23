@@ -47,6 +47,29 @@ const create = asyncHandler(async (req, res) => {
   });
 
   const student = await studentsService.create(req.body);
+
+  // If the new student lands directly in an approved/enrolled state (e.g.
+  // bulk import, registrar shortcut), attach school-wide + grade-specific
+  // auto-apply misc fees so the cashier has something to bill against.
+  // 'pending' / 'rejected' students don't get fees — they're not real
+  // enrollees yet (or never will be). Best-effort: a fee-apply failure
+  // mustn't break the create response.
+  if (student && (student.status === 'approved' || student.status === 'enrolled')) {
+    try {
+      const r = await studentsService.applySchoolWideFees(student.id);
+      // Return the post-fee-apply student so the client sees the new charges
+      // in the same response, no extra round-trip needed.
+      if (r && r.student) {
+        return res.status(201).json(r.student);
+      }
+    } catch (err) {
+      console.error(
+        '[students.create] auto-fee application failed for',
+        student.id, '—', err && err.message
+      );
+    }
+  }
+
   res.status(201).json(student);
 });
 
@@ -61,8 +84,41 @@ const update = asyncHandler(async (req, res) => {
   if (req.body.paymentMode !== undefined) {
     expect(req.body, { paymentMode: { type: 'enum', values: PAYMENT_MODES } });
   }
+
+  // Read the prior status BEFORE patching so we can detect a transition
+  // *into* approved/enrolled. We only want to auto-apply fees on the
+  // transition, not on every subsequent edit (e.g. updating an address on
+  // an already-approved student shouldn't re-run the fee logic — though
+  // applySchoolWideFees is idempotent and would just skip already-applied
+  // fees, we avoid the wasted SQL).
+  const priorStatus = req.body.status !== undefined
+    ? await studentsService.getStatus(req.params.id)
+    : null;
+
   const student = await studentsService.update(req.params.id, req.body);
   if (!student) throw new HttpError(404, 'Student not found');
+
+  // Only auto-apply on the upward transition (pending/rejected → approved
+  // or enrolled). approved → enrolled doesn't need it because approved
+  // already got the fees.
+  const becameApproved =
+    req.body.status !== undefined &&
+    (student.status === 'approved' || student.status === 'enrolled') &&
+    priorStatus !== 'approved' &&
+    priorStatus !== 'enrolled';
+
+  if (becameApproved) {
+    try {
+      const r = await studentsService.applySchoolWideFees(student.id);
+      if (r && r.student) return res.json(r.student);
+    } catch (err) {
+      console.error(
+        '[students.update] auto-fee application failed for',
+        student.id, '—', err && err.message
+      );
+    }
+  }
+
   res.json(student);
 });
 

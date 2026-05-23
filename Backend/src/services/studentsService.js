@@ -386,9 +386,20 @@ async function assignSubjectsToStudent(studentId, subjectIds) {
   }));
 }
 
+/**
+ * Lightweight status fetch — used by the controller to detect an
+ * upward status transition (pending → approved) without pulling the
+ * whole student row + its charges.
+ */
+async function getStatus(id) {
+  const row = await db.queryOne('SELECT status FROM students WHERE id = ?', [id]);
+  return row ? row.status : null;
+}
+
 module.exports = {
   getAll,
   getById,
+  getStatus,
   create,
   update,
   remove,

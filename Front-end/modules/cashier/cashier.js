@@ -134,11 +134,28 @@
     // Subjects are zero-amount curriculum records under K–10 fixed tuition and
     // can't be settled at the cashier, so a student with only subject charges
     // shouldn't appear in this dropdown.
-    const studentsWithCharges = Students.getAll().filter(s =>
+    const allStudents = Students.getAll();
+    const studentsWithCharges = allStudents.filter(s =>
       Array.isArray(s.charges) && s.charges.some(c => c.source !== 'subject')
     );
     if (!studentsWithCharges.length) {
-      sel.appendChild(U.el('option', { value: '', disabled: 'disabled' }, 'No students have charges yet'));
+      // Disambiguate the empty state. Now that the backend auto-applies
+      // school-wide + grade-specific fees on approval, the most common cause
+      // of "no billable charges" is one of:
+      //   1) every student is still in 'pending' status (waiting for the
+      //      registrar to approve them — fees are applied on approval), or
+      //   2) no auto-apply misc fees are defined for the active school year.
+      const allPending = allStudents.length > 0 &&
+        allStudents.every(s => s.status === 'pending' || s.status === 'rejected');
+      let hint;
+      if (allStudents.length === 0) {
+        hint = 'No students in the system yet';
+      } else if (allPending) {
+        hint = `${allStudents.length} student${allStudents.length === 1 ? '' : 's'} pending registrar approval — fees apply on approval`;
+      } else {
+        hint = 'No billable charges yet — check that auto-apply misc fees exist for the active school year';
+      }
+      sel.appendChild(U.el('option', { value: '', disabled: 'disabled' }, hint));
       $('#pay-summary').style.display = 'none';
       $('#pay-form').style.display = 'none';
       return;

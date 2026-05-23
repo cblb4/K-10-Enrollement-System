@@ -293,8 +293,17 @@
     };
     student.charges = (student.charges || []).concat([optimistic]);
 
+    // The backend's `expect()` validator is strict: `amount` must be a real
+    // JS number, not a number-as-string. The form input gives us a string,
+    // so coerce here before sending. (We also keep `Number(...) || 0` on the
+    // optimistic row above, so cache + server stay in sync.)
+    const payload = {
+      ...chargeData,
+      amount: Number(chargeData.amount) || 0
+    };
+
     _bg(
-      () => API.post(`/api/students/${encodeURIComponent(studentId)}/charges`, chargeData),
+      () => API.post(`/api/students/${encodeURIComponent(studentId)}/charges`, payload),
       {
         onSuccess(resp) { _replaceStudent(resp && resp.student); },
         onFailure() {
