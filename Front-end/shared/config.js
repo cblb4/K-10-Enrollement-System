@@ -13,7 +13,7 @@
     // change this to the public API URL (or empty string for same-origin).
     API_BASE: 'http://localhost:4000',
     GRADE_LEVELS: [
-      'Kindergarten',
+      'Early Kinder', 'Junior Kinder', 'Senior Kinder',
       'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5',
       'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'
     ],

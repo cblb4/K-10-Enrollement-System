@@ -174,7 +174,13 @@
    *   1. Exact case-insensitive match ("grade 5" → "Grade 5")
    *   2. Number-only ("5" → "Grade 5")
    *   3. "G5" / "g 5" → "Grade 5"
-   *   4. "K" / "kinder" / "kindergarten" → "Kindergarten"
+   *   4. Kinder variants:
+   *        "early kinder" / "ek" / "k1"            → "Early Kinder"
+   *        "junior kinder" / "jr kinder" / "k2"    → "Junior Kinder"
+   *        "senior kinder" / "sr kinder" / "k3" /
+   *        "k" / "kinder" / "kindergarten"          → "Senior Kinder"
+   *        (Senior Kinder is the historical "Kindergarten" — used as
+   *         the default so legacy imports keep matching the same cohort.)
    * Returns the canonical option from the list, or '' if no match.
    */
   function matchGradeLevel(value, options) {
@@ -187,9 +193,34 @@
       if (options[i].toLowerCase().replace(/\s+/g, '') === norm) return options[i];
     }
 
+    // Specific kinder variants first (most specific → least specific).
+    function findOpt(re) { return options.find(o => re.test(o)); }
+    if (/^(early|preprimary|prepkinder|pp|ek|k1)$/i.test(raw) ||
+        /^earlykinder$/i.test(norm)) {
+      const hit = findOpt(/early\s*kinder/i);
+      if (hit) return hit;
+    }
+    if (/^(junior|jr|jrkinder|jr\.kinder|k2)$/i.test(raw) ||
+        /^juniorkinder$/i.test(norm) ||
+        /^jrkinder$/i.test(norm)) {
+      const hit = findOpt(/junior\s*kinder/i);
+      if (hit) return hit;
+    }
+    if (/^(senior|sr|srkinder|sr\.kinder|k3)$/i.test(raw) ||
+        /^seniorkinder$/i.test(norm) ||
+        /^srkinder$/i.test(norm)) {
+      const hit = findOpt(/senior\s*kinder/i);
+      if (hit) return hit;
+    }
+
+    // Generic kinder fallback — historical "Kindergarten" maps to Senior
+    // Kinder so existing imports (which predate the split) keep landing
+    // on the highest of the three levels.
     if (/^k(inder|indergarten)?$/i.test(raw)) {
-      const k = options.find(o => /kinder/i.test(o));
-      if (k) return k;
+      const senior = findOpt(/senior\s*kinder/i);
+      if (senior) return senior;
+      const anyKinder = findOpt(/kinder/i);
+      if (anyKinder) return anyKinder;
     }
 
     const numMatch = raw.match(/^(?:grade|gr|g|year|yr|y)?\s*(\d{1,2})$/i);

@@ -322,7 +322,8 @@
    *
    *   1. "Cohort progression" (always available): next year's Grade N
    *      headcount ≈ this year's Grade N-1 headcount (assumes 100%
-   *      promotion). Kindergarten is held flat from current.
+   *      promotion). Early Kinder (the lowest level) is held flat from
+   *      current, since it has no feeder grade.
    *
    *   2. "Year-over-year adjusted" (needs 2+ school years with data):
    *      project the cohort, then scale by the year-over-year growth
@@ -359,13 +360,13 @@
       methodNote =
         'Each grade\'s projection starts from cohort progression (next year\'s Grade N ≈ this year\'s Grade N-1), ' +
         'then is scaled by the year-over-year growth observed in that cohort (clipped to ±30% to dampen small-sample noise). ' +
-        'Kindergarten uses YoY growth on the current Kindergarten count itself, since it has no feeder grade. ' +
+        'Early Kinder uses YoY growth on its own count, since it has no feeder grade. ' +
         `Based on ${years.length} school year${years.length === 1 ? '' : 's'} of records.`;
     } else {
       method = 'cohort-progression';
       methodNote =
         'Each grade\'s projection = current count of the grade immediately below (assumes 100% promotion and no withdrawals). ' +
-        'Kindergarten is held flat from the current year. ' +
+        'Early Kinder is held flat from the current year. ' +
         'Only one school year of data is available — treat these numbers as a planning baseline, not a forecast.';
     }
 
@@ -380,8 +381,8 @@
     const projected = {};
     CFG.GRADE_LEVELS.forEach((g, i) => {
       if (i === 0) {
-        // Kindergarten — no feeder grade. Hold flat, or apply YoY growth
-        // on itself if we have history.
+        // Lowest grade level (Early Kinder) — no feeder grade. Hold flat,
+        // or apply YoY growth on itself if we have history.
         projected[g] = method === 'year-over-year'
           ? Math.max(0, Math.round(current[g] * (1 + growthOf(g))))
           : current[g];

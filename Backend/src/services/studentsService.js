@@ -123,6 +123,7 @@ const PATCHABLE_FIELDS = {
   address:            'address',
   notes:              'notes',
   status:             'status',
+  pendingApproval:    'pending_approval',
   paymentStatus:      'payment_status',
   paymentMode:        'payment_mode',
   section:            'section_id',
@@ -139,31 +140,44 @@ const PATCHABLE_FIELDS = {
 
 // Boolean → TINYINT(1) columns. Listed here so the update() function knows
 // to coerce truthy/falsy JS values into 0/1 before writing.
-const BOOLEAN_FIELDS = new Set(['shuttleService', 'escGrantee']);
+const BOOLEAN_FIELDS = new Set(['shuttleService', 'escGrantee', 'pendingApproval']);
 
 async function update(id, patch) {
-  const existing = await db.queryOne('SELECT id, status FROM students WHERE id = ?', [id]);
+  const existing = await db.queryOne(
+    'SELECT id, status, pending_approval FROM students WHERE id = ?', [id]
+  );
   if (!existing) return null;
 
-  // Gate approval transitions on document completeness. When a registrar
-  // tries to flip a student's status to 'approved' or 'enrolled' via the
-  // standard PATCH route, refuse unless all 8 required documents are on
-  // file. The approve service has its own legacy path that's intentionally
-  // NOT gated here (bulk import + online-form review flow rely on it),
-  // so this check only fires on the manual edit surface.
+  // ── Two-phase approval gate ─────────────────────────────────────────────
+  // When a registrar tries to flip a student's status to 'approved' or
+  // 'enrolled' via the standard PATCH route, we honor the intent even if
+  // some required documents are still missing — but we DON'T set the
+  // status to 'approved' yet. Instead, we keep status='pending' and set
+  // the pending_approval flag to 1. The status auto-promotes to 'approved'
+  // the moment the last required document is filed (see
+  // reconcileApprovalIntent() below).
+  //
+  // The legacy /approve service path uses review() in onlineEnrollmentService
+  // and goes through reconcileApprovalIntent() directly, so the same two-
+  // phase semantics apply there too.
+  let recordPendingIntent = false;
   if (patch && (patch.status === 'approved' || patch.status === 'enrolled')) {
     const prevStatus = existing.status;
     if (prevStatus !== 'approved' && prevStatus !== 'enrolled') {
       const missing = await missingRequiredDocuments(id);
       if (missing.length) {
-        const { HttpError } = require('../middleware/errorHandler');
-        throw new HttpError(
-          400,
-          'Cannot approve: required documents are missing',
-          { missingDocuments: missing }
-        );
+        // Don't apply the requested status; instead, mark the intent.
+        // The patch is rewritten in-place so the SET clause below writes
+        // pending_approval=1 and leaves status alone.
+        recordPendingIntent = true;
+        delete patch.status;
+        patch.pendingApproval = true;
       }
     }
+  }
+  // Allow callers to explicitly clear the flag (e.g. on reject).
+  if (patch && patch.status === 'rejected') {
+    patch.pendingApproval = false;
   }
 
   const setFragments = [];
@@ -191,7 +205,64 @@ async function update(id, patch) {
     `UPDATE students SET ${setFragments.join(', ')} WHERE id = ?`,
     values
   );
+
+  // If the registrar's approve action just landed all required docs, the
+  // patch may have set status='approved' directly (the docs were complete).
+  // In that case run the post-approval hook so school-wide fees apply.
+  if (patch && patch.status === 'approved') {
+    try { await applySchoolWideFees(id); } catch (e) { /* best-effort */ }
+  }
+
   return getById(id);
+}
+
+/**
+ * Re-evaluate the two-phase approval state for one student. Called whenever
+ * a document is added or marked physical: if the registrar previously
+ * approved-with-missing-docs (pending_approval = 1) AND every required
+ * document is now on file, flip status from 'pending' to 'approved' and
+ * clear the intent flag. School-wide / grade-targeted misc fees are then
+ * applied so the cashier has something to collect against.
+ *
+ * Idempotent: a no-op if pending_approval is already 0 or any doc is still
+ * missing. Returns { autoApproved: boolean, missing: string[] } so callers
+ * can surface a toast.
+ */
+async function reconcileApprovalIntent(studentId) {
+  const row = await db.queryOne(
+    'SELECT id, status, pending_approval FROM students WHERE id = ?',
+    [studentId]
+  );
+  if (!row) return { autoApproved: false, missing: [] };
+  if (!row.pending_approval) return { autoApproved: false, missing: [] };
+  if (row.status === 'approved' || row.status === 'enrolled') {
+    // Edge case: somehow already approved — just clear the flag.
+    await db.query(
+      'UPDATE students SET pending_approval = 0 WHERE id = ?', [studentId]
+    );
+    return { autoApproved: false, missing: [] };
+  }
+  const missing = await missingRequiredDocuments(studentId);
+  if (missing.length) {
+    return { autoApproved: false, missing };
+  }
+  // Promote: status → approved, clear intent flag, apply auto-fees.
+  await db.query(
+    `UPDATE students
+        SET status = 'approved', pending_approval = 0,
+            reviewed_at = COALESCE(reviewed_at, NOW())
+      WHERE id = ?`,
+    [studentId]
+  );
+  try {
+    await applySchoolWideFees(studentId);
+  } catch (e) {
+    console.error(
+      '[studentsService.reconcileApprovalIntent] auto-fee application failed for',
+      studentId, '—', e && e.message
+    );
+  }
+  return { autoApproved: true, missing: [] };
 }
 
 /**
@@ -473,5 +544,6 @@ module.exports = {
   applyMiscFee,
   assignSubjectsToStudent,
   missingRequiredDocuments,
+  reconcileApprovalIntent,
   REQUIRED_DOCUMENT_TYPES
 };

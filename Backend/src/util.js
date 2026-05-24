@@ -116,6 +116,13 @@ function rowToStudent(row, charges, archivedCharges) {
     address:        row.address,
     notes:          row.notes || '',
     status:         row.status,
+    // ── Two-phase approval flag (migration 005) ──────────────────────────
+    // True when the registrar has approved the learner in principle but
+    // some required documents are still missing — status stays 'pending'
+    // until the last document arrives, then the service layer auto-flips
+    // status to 'approved' and clears this flag. Frontend uses it to show
+    // an "Approval Pending Documents" sub-badge in the directory.
+    pendingApproval: !!row.pending_approval,
     paymentStatus:  row.payment_status,
     paymentMode:    row.payment_mode,
     section:        row.section_id || null,

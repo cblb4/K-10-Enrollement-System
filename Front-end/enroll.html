@@ -12,7 +12,8 @@
 <body>
 
   <header class="masthead">
-    <div class="crest">H</div>
+    <!-- Real school logo — matches every other module via shared/logo.js -->
+    <div id="enroll-logo" class="enroll-logo"></div>
     <h1>Heartworks Learning Center</h1>
     <div class="sub">Online Enrollment</div>
     <p class="desc">Complete this form to enroll a learner for the upcoming school year.<br>
@@ -60,7 +61,9 @@
             <label for="gradeLevel">Grade Level <span class="req">*</span></label>
             <select id="gradeLevel" name="gradeLevel" required>
               <option value="">Select…</option>
-              <option>Kindergarten</option>
+              <option>Early Kinder</option>
+              <option>Junior Kinder</option>
+              <option>Senior Kinder</option>
               <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option>
               <option>Grade 4</option><option>Grade 5</option><option>Grade 6</option>
               <option>Grade 7</option><option>Grade 8</option><option>Grade 9</option>
@@ -292,6 +295,7 @@
     </div>
   </div>
 
+  <script src="shared/logo.js"></script>
   <script src="enroll.js"></script>
 </body>
 </html>

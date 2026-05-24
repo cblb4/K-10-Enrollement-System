@@ -130,28 +130,41 @@
     const current = sel.value;
     U.clearNode(sel);
     sel.appendChild(U.el('option', { value: '' }, '— Select a student with charges —'));
-    // Only include students who have at least one billable (non-subject) charge.
-    // Subjects are zero-amount curriculum records under K–10 fixed tuition and
-    // can't be settled at the cashier, so a student with only subject charges
-    // shouldn't appear in this dropdown.
+    // ── Approval gate ───────────────────────────────────────────────────
+    // Only fully-approved (or already-enrolled) students show up here. A
+    // student with status='pending' — including those the registrar
+    // approved-in-principle but whose required documents are still
+    // incomplete (pendingApproval=true, status='pending') — is kept out
+    // of the dropdown until the registrar finalizes their paperwork. Once
+    // the last required document arrives, the backend auto-promotes them
+    // to 'approved' and the school-wide fees apply, at which point they
+    // appear here normally.
     const allStudents = Students.getAll();
-    const studentsWithCharges = allStudents.filter(s =>
+    const approvedStudents = allStudents.filter(s =>
+      s.status === 'approved' || s.status === 'enrolled'
+    );
+    // Only include approved students who have at least one billable
+    // (non-subject) charge. Subjects are zero-amount curriculum records
+    // under K–10 fixed tuition and can't be settled at the cashier, so a
+    // student with only subject charges shouldn't appear in this dropdown.
+    const studentsWithCharges = approvedStudents.filter(s =>
       Array.isArray(s.charges) && s.charges.some(c => c.source !== 'subject')
     );
     if (!studentsWithCharges.length) {
       // Disambiguate the empty state. Now that the backend auto-applies
-      // school-wide + grade-specific fees on approval, the most common cause
-      // of "no billable charges" is one of:
-      //   1) every student is still in 'pending' status (waiting for the
-      //      registrar to approve them — fees are applied on approval), or
+      // school-wide + grade-specific fees on approval, the most common
+      // cause of "no billable charges" is one of:
+      //   1) every student is still pending registrar approval (either
+      //      truly pending or approved-but-waiting-on-documents), or
       //   2) no auto-apply misc fees are defined for the active school year.
-      const allPending = allStudents.length > 0 &&
-        allStudents.every(s => s.status === 'pending' || s.status === 'rejected');
+      const pendingCount = allStudents.filter(s =>
+        s.status === 'pending' || s.status === 'rejected'
+      ).length;
       let hint;
       if (allStudents.length === 0) {
         hint = 'No students in the system yet';
-      } else if (allPending) {
-        hint = `${allStudents.length} student${allStudents.length === 1 ? '' : 's'} pending registrar approval — fees apply on approval`;
+      } else if (!approvedStudents.length && pendingCount > 0) {
+        hint = `${pendingCount} student${pendingCount === 1 ? '' : 's'} pending registrar approval — fees apply on full approval`;
       } else {
         hint = 'No billable charges yet — check that auto-apply misc fees exist for the active school year';
       }
@@ -962,7 +975,8 @@
   function initMiscFeeForm() {
     // Build the grade-level chip picker (one checkbox-styled chip per grade).
     // We use the canonical GRADE_LEVELS list from config so any future
-    // additions (e.g. Junior/Senior Kinder) automatically appear here.
+    // additions appear here automatically. (As of the current config,
+    // the list is: Early Kinder, Junior Kinder, Senior Kinder, Grade 1-10.)
     const gradeChipsHost = $('#mf-grade-chips');
     const gradeLevels = (window.HLC_CONFIG && window.HLC_CONFIG.GRADE_LEVELS) || [];
     const gradesField = $('#mf-grades-field');
@@ -1366,7 +1380,8 @@
     // ----- Grade-specific section, with per-grade subgroups -----
     if (gradeFees.length) {
       // Build a map: gradeLevel -> [fees that cover it]. Preserve canonical
-      // grade order from config (Kindergarten, Grade 1, ...) for stable display.
+      // grade order from config (Early Kinder, Junior Kinder, Senior Kinder,
+      // Grade 1, ...) for stable display.
       const canonicalGrades = (window.HLC_CONFIG && window.HLC_CONFIG.GRADE_LEVELS) || [];
       const feesByGrade = new Map();
       gradeFees.forEach(fee => {

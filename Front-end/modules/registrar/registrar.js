@@ -355,11 +355,15 @@
       e.target.reset();
       $('#enroll-docs').querySelectorAll('.doc-tile').forEach(t =>
         t.classList.remove('filled'));
-      // Refresh the cache so the new student shows in Records immediately.
+      // Refresh the cache so the new student shows in Records when the
+      // registrar opens that view next. We deliberately stay on the Enroll
+      // form (no setActiveView call) so the registrar isn't bounced away
+      // right after submitting — they may want to enroll another learner.
       if (window.HLC_STORAGE && window.HLC_STORAGE.bootstrap) {
         await window.HLC_STORAGE.bootstrap();
       }
-      setActiveView('students');
+      // Restore the default enrollment date that was cleared by .reset().
+      $('#enrollmentDate').value = new Date().toISOString().slice(0, 10);
     } catch (err) {
       enrollErr(err && err.message ? err.message :
         'Enrollment failed. Please try again.');
@@ -376,6 +380,7 @@
     const f = (filter || '').toLowerCase().trim();
     const list = !f ? all : all.filter(s =>
       fullName(s).toLowerCase().includes(f) ||
+      (s.id || '').toLowerCase().includes(f) ||
       (s.gradeLevel || '').toLowerCase().includes(f) ||
       (s.program || '').toLowerCase().includes(f) ||
       (s.status || '').toLowerCase().includes(f) ||
@@ -385,7 +390,7 @@
     if (!list.length) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 7;
+      td.colSpan = 8;
       td.appendChild(emptyState('No students found', f ? 'Try a different search term.' : 'Add your first student through New Enrollment.'));
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -394,6 +399,11 @@
 
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(s => {
       const tr = document.createElement('tr');
+      // Student No. — the database id, shown monospaced so it's easy to read.
+      tr.appendChild(U.el('td', {
+        style: 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;' +
+               'font-size:0.82rem;color:var(--ink-700);white-space:nowrap;'
+      }, s.id));
       // Student — name + a small "Online" tag for online-sourced records.
       const nameCell = [
         U.el('div', { style: 'font-weight:500;color:var(--ink-900);' }, fullName(s)),
@@ -415,6 +425,16 @@
       ]));
       const statusTd = document.createElement('td');
       statusTd.appendChild(statusPill(s.status));
+      // If the registrar has approved-in-principle but required documents
+      // are still missing, surface the intent under the main status pill.
+      if (s.pendingApproval && s.status === 'pending') {
+        statusTd.appendChild(U.el('div', {
+          style: 'display:inline-block;margin-top:4px;font-size:0.66rem;' +
+                 'font-weight:600;color:var(--maroon-700,#6b1f23);' +
+                 'background:var(--gold-100,#f8f0d4);border-radius:4px;' +
+                 'padding:1px 6px;letter-spacing:0.02em;'
+        }, 'AWAITING DOCS'));
+      }
       tr.appendChild(statusTd);
       tr.appendChild(U.el('td', {}, U.formatDate(s.createdAt)));
 
@@ -441,11 +461,36 @@
         onclick: () => openDeleteStudentModal(s.id)
       }, 'Delete'));
       if (s.status === 'pending') {
+        // The button text reflects what the click will actually do, so the
+        // registrar isn't surprised when "Approve" doesn't flip the badge.
+        // If pendingApproval is already set, the intent has been recorded
+        // and we're waiting on documents; clicking it again is a no-op
+        // (the backend keeps it idempotent).
+        const label = s.pendingApproval ? 'Awaiting Documents' : 'Approve';
+        const isAlreadyMarked = !!s.pendingApproval;
         actions.appendChild(U.el('button', {
           class: 'btn btn-primary btn-sm',
-          style: 'margin-left:6px;',
-          onclick: () => { updateStatus(s.id, 'approved'); U.toast('Marked as approved', 'success'); renderStudentTable($('#students-search').value); renderDashboard(); }
-        }, 'Approve'));
+          style: 'margin-left:6px;' + (isAlreadyMarked ? 'opacity:0.7;' : ''),
+          onclick: async () => {
+            const updated = updateStatus(s.id, 'approved');
+            // Re-fetch from the server so the response reflects the
+            // two-phase gate (status may stay 'pending' with
+            // pendingApproval=1 if required documents are still missing).
+            if (window.HLC_STORAGE && window.HLC_STORAGE.bootstrap) {
+              try { await window.HLC_STORAGE.bootstrap(); } catch (_) { /* best-effort */ }
+            }
+            const after = Students.getById(s.id) || updated || {};
+            if (after.status === 'approved' || after.status === 'enrolled') {
+              U.toast('Marked as approved', 'success');
+            } else if (after.pendingApproval) {
+              U.toast('Approval saved — waiting on required documents', 'info');
+            } else {
+              U.toast('Status updated', 'success');
+            }
+            renderStudentTable($('#students-search').value);
+            renderDashboard();
+          }
+        }, label));
       }
       tr.appendChild(actions);
       tbody.appendChild(tr);
@@ -2472,8 +2517,14 @@
   /**
    * Show/hide the inline warning under the Status dropdown depending on
    * (a) the currently selected status and (b) whether all required
-   * documents are present. Disables the Save button when the selection
-   * would be rejected by the server.
+   * documents are present.
+   *
+   * The backend used to reject approve-with-missing-docs outright with an
+   * HTTP 400. Now (per the two-phase approval flow) it records the
+   * registrar's intent on the pending_approval flag instead and keeps
+   * status='pending' until paperwork is complete. So we no longer disable
+   * Save — we just surface a heads-up that the actual flip to 'Approved'
+   * will wait on documents.
    */
   function refreshStatusGate() {
     const selected = $('#es-status').value;
@@ -2481,13 +2532,20 @@
     const docs = (editStudentExtras && editStudentExtras.documents) || [];
     const present = new Set(docs.map(d => d.documentType));
     const missing = REQUIRED_DOC_TYPES.filter(d => !present.has(d.key));
-    const wouldBlock = wantsApproval && missing.length > 0;
+    const intentOnly = wantsApproval && missing.length > 0;
 
-    $('#es-status-warning').style.display = wouldBlock ? '' : 'none';
-    $('#es-submit').disabled = wouldBlock;
-    $('#es-submit').textContent = wouldBlock
-      ? 'Upload required documents to enable approval'
-      : 'Save Changes';
+    const warnEl = $('#es-status-warning');
+    if (intentOnly) {
+      warnEl.style.display = '';
+      warnEl.textContent =
+        `Approval will be saved but ${missing.length} required document` +
+        `${missing.length === 1 ? ' is' : 's are'} still missing — the ` +
+        `student will stay Pending until paperwork is complete.`;
+    } else {
+      warnEl.style.display = 'none';
+    }
+    $('#es-submit').disabled = false;
+    $('#es-submit').textContent = 'Save Changes';
   }
 
   function openEditStudentModal(studentId) {
@@ -2652,23 +2710,22 @@
       return;
     }
 
-    // Client-side gate: refuse to send an approval transition if docs
-    // are missing. The backend will refuse too, but bailing here gives
-    // a cleaner error message and avoids a wasted round-trip.
+    // Approve-with-missing-docs is no longer a client-side block. The
+    // backend now records the registrar's approval intent on the
+    // pending_approval flag and keeps status='pending' until the last
+    // required document is filed (at which point the backend auto-flips
+    // status to 'approved'). We still compute `intentOnly` here so we can
+    // tailor the success toast.
     const wantsApprove = ($('#es-status').value === 'approved' ||
                           $('#es-status').value === 'enrolled');
+    let intentOnly = false;
     if (wantsApprove) {
       const docs = (editStudentExtras && editStudentExtras.documents) || [];
       const present = new Set(docs.map(d => d.documentType));
       const missing = REQUIRED_DOC_TYPES.filter(d => !present.has(d.key));
       const wasAlreadyApproved = (before.status === 'approved' ||
                                   before.status === 'enrolled');
-      if (missing.length && !wasAlreadyApproved) {
-        return U.toast(
-          `Cannot approve — ${missing.length} document(s) still missing`,
-          'error'
-        );
-      }
+      if (missing.length && !wasAlreadyApproved) intentOnly = true;
     }
 
     // ── Build the student-level patch ──
@@ -2762,6 +2819,12 @@
         `Saved student fields but ${guardianFailures.length} guardian save(s) failed — try again`,
         'error'
       );
+    } else if (intentOnly) {
+      U.toast(
+        `Saved — approval waiting on required documents (status stays Pending until paperwork is complete)`,
+        'info'
+      );
+      closeEditStudentModal();
     } else {
       U.toast(`Saved changes to ${fullName(updated)}`, 'success');
       closeEditStudentModal();

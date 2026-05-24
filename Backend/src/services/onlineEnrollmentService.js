@@ -244,6 +244,12 @@ async function attachDocuments(studentId, items) {
     }
   }
 
+  // If the registrar previously approved-with-missing-docs (pending_approval
+  // = 1) and this upload completes the required set, auto-promote the
+  // student to 'approved'. No-op otherwise.
+  try { await studentsService.reconcileApprovalIntent(studentId); }
+  catch (e) { console.error('[reconcileApprovalIntent] after upload failed:', e && e.message); }
+
   return getDocuments(studentId);
 }
 
@@ -307,6 +313,11 @@ async function markDocumentPhysical(studentId, documentType, receivedBy) {
     'SELECT * FROM enrollment_documents WHERE student_id = ? AND document_type = ?',
     [studentId, documentType]
   );
+  // If the registrar previously approved-with-missing-docs (pending_approval
+  // = 1) and this physical receipt completes the required set, auto-promote
+  // the student to 'approved'. No-op otherwise.
+  try { await studentsService.reconcileApprovalIntent(studentId); }
+  catch (e) { console.error('[reconcileApprovalIntent] after markPhysical failed:', e && e.message); }
   return rowToDocument(row);
 }
 
@@ -456,6 +467,7 @@ async function getSubmission(studentId) {
   return {
     id:                 row.id,
     status:             row.status,
+    pendingApproval:    !!row.pending_approval,
     enrollmentSource:   row.enrollment_source,
     schoolYear:         row.school_year,
     program:            row.program || '',
@@ -507,50 +519,75 @@ async function listPending(status) {
 async function review(studentId, nextStatus, opts) {
   opts = opts || {};
   const row = await db.queryOne(
-    `SELECT id FROM students WHERE id = ? AND enrollment_source = 'online'`,
+    `SELECT id, status FROM students WHERE id = ? AND enrollment_source = 'online'`,
     [studentId]
   );
   if (!row) return null;
 
+  // ── Two-phase approval gate ─────────────────────────────────────────────
+  // When approving but some required documents are still missing, we DON'T
+  // promote status to 'approved' yet. Instead, we record the registrar's
+  // intent on the pending_approval flag and leave status='pending'. The
+  // status auto-promotes the moment the last required document arrives
+  // (handled in attachDocuments / markDocumentPhysical).
+  let intentOnly = false;
+  if (nextStatus === 'approved') {
+    const missing = await studentsService.missingRequiredDocuments(studentId);
+    if (missing.length) intentOnly = true;
+  }
+
   await db.withTransaction(async (cx) => {
-    await cx.execute(
-      `UPDATE students
-          SET status = ?, reviewed_at = NOW(), reviewed_by = ?,
-              rejection_reason = ?
-        WHERE id = ?`,
-      [
-        nextStatus,
-        opts.reviewedBy || 'registrar',
-        nextStatus === 'rejected' ? (opts.reason || null) : null,
-        studentId
-      ]
-    );
+    if (intentOnly) {
+      await cx.execute(
+        `UPDATE students
+            SET pending_approval = 1,
+                reviewed_at = NOW(), reviewed_by = ?,
+                rejection_reason = NULL
+          WHERE id = ?`,
+        [opts.reviewedBy || 'registrar', studentId]
+      );
+    } else {
+      await cx.execute(
+        `UPDATE students
+            SET status = ?, pending_approval = 0,
+                reviewed_at = NOW(), reviewed_by = ?,
+                rejection_reason = ?
+          WHERE id = ?`,
+        [
+          nextStatus,
+          opts.reviewedBy || 'registrar',
+          nextStatus === 'rejected' ? (opts.reason || null) : null,
+          studentId
+        ]
+      );
+    }
     await cx.execute(
       `INSERT INTO activity_log (id, role, action, details)
          VALUES (?, ?, ?, ?)`,
       [
         generateId('act'),
         'registrar',
-        nextStatus === 'approved' ? 'Approved online enrollment'
-                                  : 'Rejected online enrollment',
+        nextStatus === 'approved'
+          ? (intentOnly ? 'Marked online enrollment as approved (pending documents)'
+                        : 'Approved online enrollment')
+          : 'Rejected online enrollment',
         `Student ${studentId}` +
           (nextStatus === 'rejected' && opts.reason ? ` — ${opts.reason}` : '')
       ]
     );
   });
 
-  // When an enrollment is approved, attach the school-wide + grade-specific
-  // auto-apply misc fees so the cashier has something to collect against.
-  // Runs OUTSIDE the status-update transaction so a fee-application error
-  // doesn't roll back the approval itself — at worst the registrar (or
-  // cashier) can retry via the "apply auto-fees" path. Idempotent: the
-  // service skips fees that are already on the student.
-  if (nextStatus === 'approved') {
+  // When an enrollment is fully approved (no intent-only fallback), attach
+  // the school-wide + grade-specific auto-apply misc fees so the cashier
+  // has something to collect against. Runs OUTSIDE the status-update
+  // transaction so a fee-application error doesn't roll back the approval
+  // itself — at worst the registrar (or cashier) can retry via the "apply
+  // auto-fees" path. Idempotent: the service skips fees that are already
+  // on the student.
+  if (nextStatus === 'approved' && !intentOnly) {
     try {
       await studentsService.applySchoolWideFees(studentId);
     } catch (err) {
-      // Log loudly but don't fail the approve response — the student IS
-      // approved at this point and the cashier can re-trigger.
       console.error(
         '[onlineEnrollmentService.review] auto-fee application failed for',
         studentId, '—', err && err.message

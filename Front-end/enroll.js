@@ -320,6 +320,11 @@
 
   // ─── Init ─────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
+    // Render the real school logo — same single source of truth as the rest
+    // of the modules (shared/logo.js → assets/images/Logo.png).
+    if (window.HLC_LOGO && typeof window.HLC_LOGO.renderLogo === 'function') {
+      window.HLC_LOGO.renderLogo('#enroll-logo', { withOpacity: false });
+    }
     buildDocTiles();
     wireAge();
     wireConditional();
