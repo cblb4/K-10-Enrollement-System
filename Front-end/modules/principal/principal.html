@@ -107,6 +107,10 @@
           <span class="layer-badge">I · Information</span>
           <h2>Aggregated Metrics</h2>
           <p>Raw data structured into meaningful summaries — counts per grade, financial totals, payment progress.</p>
+          <div class="derived-from">
+            <span class="df-arrow">←</span>
+            <span class="df-text"><strong>Derived from Data</strong> via grouping, counting, and summation across student, charge, and payment records.</span>
+          </div>
         </div>
 
         <div class="analytics-toolbar">
@@ -152,6 +156,10 @@
           <span class="layer-badge">K · Knowledge</span>
           <h2>Patterns &amp; Predictions</h2>
           <p>What the information reveals when interrogated — the <em>why</em> behind the numbers (diagnostic), and where the data is heading (predictive).</p>
+          <div class="derived-from">
+            <span class="df-arrow">←</span>
+            <span class="df-text"><strong>Derived from Information</strong> via risk segmentation, cohort-progression forecasting, diagnostic source attribution, and recurring-pattern detection. Each card discloses its method.</span>
+          </div>
         </div>
 
         <!-- ----- Diagnostic sub-section ----- -->
@@ -233,10 +241,24 @@
           <span class="layer-badge">W · Wisdom</span>
           <h2>Strategic Recommendations</h2>
           <p>Knowledge translated into action — what to do next based on what the system has observed.</p>
+          <div class="derived-from">
+            <span class="df-arrow">←</span>
+            <span class="df-text"><strong>Derived from Knowledge</strong> via decision rules. Every recommendation cites the Knowledge artifact that triggered it and carries a confidence badge reflecting the sample size of its source.</span>
+          </div>
         </div>
 
         <h2 class="section-title">Suggested Actions</h2>
         <div class="insight-grid" id="wisdom-grid"></div>
+
+        <details class="decision-criteria">
+          <summary>Decision criteria — when each recommendation fires</summary>
+          <p class="dc-intro">
+            Wisdom-tier outputs are governed by explicit thresholds rather than free-form generation.
+            A recommendation appears only when its triggering condition is met. This prevents the
+            upper tier from surfacing noise on thin data.
+          </p>
+          <div class="dc-table" id="wisdom-criteria"></div>
+        </details>
       </section>
     </main>
   </div>

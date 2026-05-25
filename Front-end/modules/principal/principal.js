@@ -708,6 +708,120 @@
   // Every recommendation cites the Knowledge primitive that produced it.
   // This is what makes the D→I→K→W chain visible to the reader instead
   // of recommendations appearing out of thin air.
+  // ============================================================
+  // LAYER 4 — WISDOM helpers
+  // ------------------------------------------------------------
+  // Confidence assignment for each recommendation. The DIKW
+  // framework's standard critique is that Wisdom-tier outputs
+  // overclaim on thin data. Each insight carries a confidence
+  // tag — strong / moderate / baseline — based on the sample
+  // size of its source Knowledge analytic.
+  // ============================================================
+
+  const CONFIDENCE_TOOLTIPS = {
+    strong:   'Based on ≥20 records and multi-period evidence; the underlying signal is well-supported.',
+    moderate: 'Based on 10–19 records or a single period of data; directionally informative but not yet a strong trend.',
+    baseline: 'Based on <10 records or fallback heuristics; treat as a planning starting point, not a conclusion.'
+  };
+
+  function confidenceForCount(n) {
+    if (n >= 20) return 'strong';
+    if (n >= 10) return 'moderate';
+    return 'baseline';
+  }
+
+  function confidenceForRisk(risk) {
+    return confidenceForCount(risk.totals.students);
+  }
+
+  function confidenceForForecast(forecast) {
+    // Forecast confidence depends on BOTH sample size AND whether
+    // we have multi-year history (cohort-progression on one year
+    // can only ever be baseline; year-over-year with ≥20 students
+    // earns a strong rating).
+    if (forecast.method === 'year-over-year' && forecast.sampleSize >= 20) return 'strong';
+    if (forecast.method === 'year-over-year' || forecast.sampleSize >= 20) return 'moderate';
+    return 'baseline';
+  }
+
+  // ------------------------------------------------------------
+  // Decision criteria — the threshold rules that gate each
+  // Wisdom recommendation. Rendered as an auditable table at the
+  // bottom of the Wisdom view so a panelist can see exactly when
+  // each recommendation fires (and, by implication, when it
+  // doesn't). This is what separates a rule-based prescriptive
+  // system from a black-box "AI suggestion."
+  // ------------------------------------------------------------
+
+  const DECISION_CRITERIA = [
+    {
+      recommendation: 'Plan additional sections',
+      trigger: 'Projected growth ≥ +20% AND ≥ +3 students for a grade',
+      rationale: 'Avoids reacting to noise on small grades; +3 is the smallest cohort change that meaningfully affects class size.',
+      source: 'Enrollment Forecast'
+    },
+    {
+      recommendation: 'Re-evaluate shrinking sections',
+      trigger: 'Projected drop ≥ −20% AND ≥ 3 students for a grade',
+      rationale: 'Symmetric with the growth rule; under-utilised sections waste adviser capacity.',
+      source: 'Enrollment Forecast'
+    },
+    {
+      recommendation: 'Engage Critical-bucket families',
+      trigger: '≥1 student with aged debt ≥30% of total billed (≥14 days unpaid)',
+      rationale: 'Critical aged debt rarely self-resolves; direct outreach has the highest recovery rate at this stage.',
+      source: 'Payment Risk Segmentation'
+    },
+    {
+      recommendation: 'Step up reminder cadence',
+      trigger: '≥3 students in At-risk bucket (aged debt <30% of billed)',
+      rationale: 'Below 3 students, individual follow-up is more efficient than a cadence change.',
+      source: 'Payment Risk Segmentation'
+    },
+    {
+      recommendation: 'Address dominant outstanding category',
+      trigger: 'Top charge category holds ≥40% of total outstanding AND is policy-actionable',
+      rationale: 'Subject placeholders and one-off charges are excluded — only categories the school can directly adjust trigger this.',
+      source: 'Outstanding by Type'
+    },
+    {
+      recommendation: 'Standardize recurring charges',
+      trigger: '≥1 fee title appears ≥2× with differing amounts',
+      rationale: 'Inconsistent pricing erodes parent trust; the rule fires on the first detected variance.',
+      source: 'Recurring Charge Patterns'
+    },
+    {
+      recommendation: 'Clear approval backlog',
+      trigger: '≥5 pending applications',
+      rationale: 'Below 5, the backlog is normal queue depth and not a process issue.',
+      source: 'Enrollment by Status'
+    },
+    {
+      recommendation: 'Consolidate under-utilised sections',
+      trigger: '≥1 section filled below 40% capacity AND no growth-driven new-section recommendation in play',
+      rationale: 'Suppressed when growth is also recommended — opening new sections in one grade while consolidating in another is one conversation, not two.',
+      source: 'Section Utilisation'
+    }
+  ];
+
+  function renderDecisionCriteria() {
+    const host = $('#wisdom-criteria');
+    if (!host) return;
+    U.clearNode(host);
+    // Header row
+    ['Recommendation', 'Triggering Condition', 'Rationale', 'Source Analytic'].forEach(h => {
+      host.appendChild(U.el('div', { class: 'dc-cell dc-head' }, h));
+    });
+    // Body rows
+    DECISION_CRITERIA.forEach(row => {
+      host.appendChild(U.el('div', { class: 'dc-cell dc-rec' }, row.recommendation));
+      const triggerEl = U.el('div', { class: 'dc-cell dc-trigger' }, row.trigger);
+      host.appendChild(triggerEl);
+      host.appendChild(U.el('div', { class: 'dc-cell dc-rationale' }, row.rationale));
+      host.appendChild(U.el('div', { class: 'dc-cell dc-source' }, row.source));
+    });
+  }
+
   function renderWisdom() {
     const grid = $('#wisdom-grid');
     U.clearNode(grid);
@@ -748,7 +862,15 @@
         title: 'Plan additional sections for next year',
         body: `Projected growth puts the following grade(s) at or above current section capacity: ${list}. ` +
               'Opening another section preserves the teacher-to-student ratio and signals to families that demand has been accommodated.',
-        source: `Knowledge → Enrollment Forecast (${A.forecast.method})`
+        source: `Knowledge → Enrollment Forecast (${A.forecast.method})`,
+        confidence: confidenceForForecast(A.forecast),
+        trace: {
+          D: `Student records across ${A.forecast.sampleSize} enrolled student(s) in ${A.forecast.currentYear}` +
+             (A.forecast.previousYear ? ` and prior-year cohort data from ${A.forecast.previousYear}` : ''),
+          I: 'Headcount per grade per school year (Information → Students per Grade Level)',
+          K: `Enrollment Forecast — ${A.forecast.method}; projection vs. current shows ≥20% growth and ≥3-student increase in ${forecastGains.length} grade(s)`,
+          W: 'Open additional section(s) where projection meets or exceeds current capacity'
+        }
       });
     }
     if (forecastDrops.length) {
@@ -758,7 +880,15 @@
         title: 'Re-evaluate sections in shrinking grades',
         body: `Cohort progression projects shrinking enrollment for: ${list}. ` +
               'Consider consolidating sections or reallocating advisers before the new term to avoid under-utilization.',
-        source: `Knowledge → Enrollment Forecast (${A.forecast.method})`
+        source: `Knowledge → Enrollment Forecast (${A.forecast.method})`,
+        confidence: confidenceForForecast(A.forecast),
+        trace: {
+          D: `Student records across ${A.forecast.sampleSize} enrolled student(s) in ${A.forecast.currentYear}` +
+             (A.forecast.previousYear ? ` and prior-year cohort data from ${A.forecast.previousYear}` : ''),
+          I: 'Headcount per grade per school year (Information → Students per Grade Level)',
+          K: `Enrollment Forecast — ${A.forecast.method}; projection vs. current shows ≥20% drop and ≥3-student decrease in ${forecastDrops.length} grade(s)`,
+          W: 'Consolidate sections or reallocate advisers in shrinking grades before the new term'
+        }
       });
     }
 
@@ -771,7 +901,14 @@
         body: `${r.critical} student${r.critical === 1 ? '' : 's'} carry critical aged balances totaling ` +
               `${U.formatCurrency(r.criticalAmount)}. Consider direct outreach (call, meeting) and ` +
               'evaluating payment plans before the term advances and balances roll over.',
-        source: 'Knowledge → Payment Risk Segmentation (Critical bucket)'
+        source: 'Knowledge → Payment Risk Segmentation (Critical bucket)',
+        confidence: confidenceForRisk(A.risk),
+        trace: {
+          D: `Charge rows across ${r.students} billed student(s); aged-debt threshold = ${AGED_DAY_THRESHOLD} days`,
+          I: 'Total billed and total aged (unpaid > threshold) per student',
+          K: `Payment Risk Segmentation — ${r.critical} student(s) classified Critical (aged debt ≥ 30% of billed)`,
+          W: 'Direct outreach + payment-plan review for Critical-bucket families'
+        }
       });
     } else if (r.atRisk >= 3) {
       insights.push({
@@ -780,7 +917,14 @@
         body: `${r.atRisk} student${r.atRisk === 1 ? ' is' : 's are'} at-risk with aged balances ` +
               `totaling ${U.formatCurrency(r.atRiskAmount)}. A reminder cadence (SMS at day 7, call at day 14) ` +
               'typically prevents these from drifting into critical territory.',
-        source: 'Knowledge → Payment Risk Segmentation (At-risk bucket)'
+        source: 'Knowledge → Payment Risk Segmentation (At-risk bucket)',
+        confidence: confidenceForRisk(A.risk),
+        trace: {
+          D: `Charge rows across ${r.students} billed student(s); aged-debt threshold = ${AGED_DAY_THRESHOLD} days`,
+          I: 'Total billed and total aged (unpaid > threshold) per student',
+          K: `Payment Risk Segmentation — ${r.atRisk} student(s) classified At-risk (aged debt < 30% of billed)`,
+          W: 'Tiered reminder cadence — SMS at day 7, call at day 14'
+        }
       });
     } else if (r.students > 0 && r.critical === 0 && r.atRisk === 0) {
       insights.push({
@@ -788,7 +932,14 @@
         title: 'Collections health is strong',
         body: `All ${r.students} billed student${r.students === 1 ? '' : 's are'} on-track with no aged debt. ` +
               'Maintain the current billing and reminder cadence.',
-        source: 'Knowledge → Payment Risk Segmentation (no aged debt)'
+        source: 'Knowledge → Payment Risk Segmentation (no aged debt)',
+        confidence: confidenceForRisk(A.risk),
+        trace: {
+          D: `Charge rows across ${r.students} billed student(s); aged-debt threshold = ${AGED_DAY_THRESHOLD} days`,
+          I: 'Total billed and total aged (unpaid > threshold) per student',
+          K: `Payment Risk Segmentation — 0 At-risk, 0 Critical; all ${r.students} billed student(s) On-track`,
+          W: 'Maintain current billing and reminder cadence'
+        }
       });
     }
 
@@ -812,7 +963,14 @@
           layer: 'Fee Policy',
           title: `Address outstanding ${top.label.toLowerCase()}s`,
           body,
-          source: `Knowledge → Outstanding by Type (${top.label}: ${(top.share * 100).toFixed(0)}%)`
+          source: `Knowledge → Outstanding by Type (${top.label}: ${(top.share * 100).toFixed(0)}%)`,
+          confidence: confidenceForCount(A.diagnostic.sourceRows.reduce((s, x) => s + (x.count || 0), 0)),
+          trace: {
+            D: 'Unpaid charge rows across all billed students',
+            I: 'Outstanding amount per charge classification (carry-over, school-wide, grade-level, etc.)',
+            K: `Diagnostic Breakdown — ${top.label} concentrates ${(top.share * 100).toFixed(0)}% of total outstanding (${U.formatCurrency(top.amount)})`,
+            W: `Targeted policy review of the dominant outstanding category (${top.label.toLowerCase()})`
+          }
         });
       }
     }
@@ -836,7 +994,14 @@
           title: 'Standardize recurring charges',
           body: `Some recurring fees show inconsistent amounts: ${examples.join(', ')}. ` +
                 'Consider standardizing rates to improve transparency and parent trust.',
-          source: 'Knowledge → Recurring Charge Patterns'
+          source: 'Knowledge → Recurring Charge Patterns',
+          confidence: confidenceForCount(charges.length),
+          trace: {
+            D: `${charges.length} charge row(s) across all students`,
+            I: 'Charge amounts grouped by normalized title',
+            K: `Recurring Charge Patterns — ${variants.length} fee title(s) appear ≥2× with differing amounts`,
+            W: 'Standardize recurring fee amounts to improve transparency'
+          }
         });
       }
     }
@@ -851,7 +1016,14 @@
         body: `${pending.length} application${pending.length === 1 ? ' is' : 's are'} awaiting approval` +
               (oldestDays > 3 ? `; the oldest has waited ${oldestDays} days` : '') +
               '. Streamlining the registrar-to-admin handoff keeps families informed.',
-        source: 'Information → Pending student status'
+        source: 'Information → Pending student status',
+        confidence: confidenceForCount(pending.length),
+        trace: {
+          D: 'Student records with status field',
+          I: `Enrollment-by-status aggregation — ${pending.length} pending application(s); oldest waiting ${oldestDays} day(s)`,
+          K: '(Bypassed — backlog is read directly off Information, no diagnostic step required)',
+          W: 'Streamline the registrar-to-admin approval handoff'
+        }
       });
     }
 
@@ -870,7 +1042,14 @@
         body: `${underused.length} section${underused.length === 1 ? '' : 's'} ` +
               `(${underused.slice(0, 3).map(s => s.name).join(', ')}) are filled below 40%. ` +
               'Consolidation could free up adviser capacity for needier grade levels.',
-        source: 'Information → Section Utilisation'
+        source: 'Information → Section Utilisation',
+        confidence: confidenceForCount(A.sections.length * 5),
+        trace: {
+          D: `${A.sections.length} section record(s) with capacity; ${A.students.length} student record(s) with section assignments`,
+          I: `Section utilisation = assigned students / capacity per section`,
+          K: '(Bypassed — utilisation is read directly off Information)',
+          W: 'Consolidate under-utilised sections (below 40% capacity)'
+        }
       });
     }
 
@@ -880,14 +1059,25 @@
         layer: 'Awaiting Data',
         title: 'Not enough activity yet',
         body: 'Once students are enrolled, charges assigned, and payments processed, the system will surface tailored recommendations here. For now, encourage the registrar to begin enrollment.',
-        source: null
+        source: null,
+        confidence: 'baseline',
+        trace: null
       });
     }
 
     insights.forEach(ins => {
+      const headChildren = [U.el('h4', {}, ins.title)];
+      if (ins.confidence) {
+        const cLabel = ins.confidence.charAt(0).toUpperCase() + ins.confidence.slice(1);
+        const cTitle = CONFIDENCE_TOOLTIPS[ins.confidence] || '';
+        headChildren.push(U.el('span', {
+          class: 'confidence ' + ins.confidence,
+          title: cTitle
+        }, cLabel));
+      }
       const card = U.el('div', { class: 'insight' }, [
         U.el('div', { class: 'layer' }, ins.layer),
-        U.el('h4', {}, ins.title),
+        U.el('div', { class: 'insight-head' }, headChildren),
         U.el('p', {}, ins.body)
       ]);
       if (ins.source) {
@@ -897,8 +1087,44 @@
           U.el('span', { class: 'src' }, ins.source)
         ]));
       }
+      if (ins.trace) {
+        const toggle = U.el('button', {
+          class: 'trace-toggle',
+          type: 'button'
+        }, [
+          U.el('span', { class: 'chev' }, '▸'),
+          U.el('span', {}, 'Show DIKW trace')
+        ]);
+        const tracePanel = U.el('div', { class: 'trace' }, [
+          U.el('div', { class: 'trace-row' }, [
+            U.el('div', { class: 'tier-label' }, 'D · Data'),
+            U.el('div', { class: 'tier-content' }, ins.trace.D)
+          ]),
+          U.el('div', { class: 'trace-row' }, [
+            U.el('div', { class: 'tier-label' }, 'I · Info'),
+            U.el('div', { class: 'tier-content' }, ins.trace.I)
+          ]),
+          U.el('div', { class: 'trace-row' }, [
+            U.el('div', { class: 'tier-label' }, 'K · Knowledge'),
+            U.el('div', { class: 'tier-content' }, ins.trace.K)
+          ]),
+          U.el('div', { class: 'trace-row' }, [
+            U.el('div', { class: 'tier-label' }, 'W · Wisdom'),
+            U.el('div', { class: 'tier-content' }, ins.trace.W)
+          ])
+        ]);
+        toggle.addEventListener('click', () => {
+          const isOpen = tracePanel.classList.toggle('open');
+          toggle.classList.toggle('open', isOpen);
+          toggle.lastChild.textContent = isOpen ? 'Hide DIKW trace' : 'Show DIKW trace';
+        });
+        card.appendChild(toggle);
+        card.appendChild(tracePanel);
+      }
       grid.appendChild(card);
     });
+
+    renderDecisionCriteria();
   }
 
   // ----------- Boot -----------

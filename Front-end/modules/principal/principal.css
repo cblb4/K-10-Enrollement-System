@@ -444,3 +444,239 @@
   background:#fff;color:var(--ink-900,#1a1614);
 }
 .analytics-toolbar .hint{margin-left:auto;font-size:0.82rem;color:var(--ink-500,#6b5e54);}
+
+/* ============================================================
+   "DERIVED FROM" CAPTION — placed under each upper-tier banner
+   Makes the DIKW transformation between layers explicit on screen
+   instead of just inferable from the navigation order.
+   ============================================================ */
+.dikw-banner .derived-from {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: rgba(212, 175, 55, 0.08);
+  border-left: 2px solid var(--gold-500);
+  border-radius: 0 3px 3px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.dikw-banner .derived-from .df-arrow {
+  color: var(--gold-400);
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.dikw-banner .derived-from .df-text {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.5;
+  max-width: 720px;
+}
+.dikw-banner .derived-from .df-text strong {
+  color: var(--gold-400);
+  font-weight: 600;
+}
+
+/* ============================================================
+   WISDOM CONFIDENCE BADGE
+   Each recommendation carries a confidence tag — strong / moderate
+   / baseline — based on the sample size of its source analytic.
+   Addresses the common DIKW critique that the upper tier lacks
+   epistemic humility on thin data.
+   ============================================================ */
+.insight .confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 2px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.insight .confidence::before {
+  content: '●';
+  font-size: 0.65rem;
+}
+.insight .confidence.strong   { background: rgba(15, 81, 50, 0.1);   color: var(--success); }
+.insight .confidence.moderate { background: rgba(212, 175, 55, 0.15); color: var(--gold-700, #b8860b); }
+.insight .confidence.baseline { background: rgba(107, 94, 84, 0.1);  color: var(--ink-700); }
+
+.insight .insight-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin-bottom: 8px;
+}
+.insight .insight-head h4 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ============================================================
+   DIKW TRACE — expandable provenance chain on each Wisdom card
+   Shows the full D→I→K→W path for the recommendation, so a panelist
+   can verify that no insight appears out of thin air.
+   ============================================================ */
+.insight .trace-toggle {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--maroon-700);
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.insight .trace-toggle:hover { text-decoration: underline; }
+.insight .trace-toggle .chev {
+  display: inline-block;
+  transition: transform 0.18s ease;
+  font-size: 0.7rem;
+}
+.insight .trace-toggle.open .chev { transform: rotate(90deg); }
+
+.insight .trace {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: none;
+}
+.insight .trace.open { display: block; }
+.insight .trace .trace-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 0.82rem;
+  align-items: start;
+}
+.insight .trace .trace-row + .trace-row {
+  border-top: 1px dashed var(--line);
+}
+.insight .trace .tier-label {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--maroon-700);
+  padding-top: 1px;
+}
+.insight .trace .tier-content {
+  color: var(--ink-700);
+  line-height: 1.5;
+}
+.insight .trace .tier-content code {
+  font-size: 0.78rem;
+  background: rgba(122, 26, 26, 0.05);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--maroon-800);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ============================================================
+   DECISION CRITERIA PANEL — lists the threshold rules that gate
+   each Wisdom recommendation. Defends against "garbage knowledge
+   → garbage wisdom" by making the rules auditable.
+   ============================================================ */
+.decision-criteria {
+  margin-top: 32px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 16px 20px;
+}
+.decision-criteria > summary {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--maroon-900);
+  font-size: 1.05rem;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.decision-criteria > summary::-webkit-details-marker { display: none; }
+.decision-criteria > summary::before {
+  content: '▸';
+  color: var(--gold-700, #b8860b);
+  font-size: 0.85rem;
+  transition: transform 0.15s ease;
+}
+.decision-criteria[open] > summary::before { transform: rotate(90deg); }
+.decision-criteria .dc-intro {
+  margin: 14px 0 18px;
+  font-size: 0.88rem;
+  color: var(--ink-700);
+  line-height: 1.55;
+  font-style: italic;
+  max-width: 760px;
+}
+.dc-table {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 1.6fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+.dc-table .dc-cell {
+  background: #fff;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+.dc-table .dc-cell.dc-head {
+  background: var(--maroon-900);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.dc-table .dc-cell.dc-rec     { font-weight: 600; color: var(--maroon-900); }
+.dc-table .dc-cell.dc-trigger { color: var(--ink-900); }
+.dc-table .dc-cell.dc-trigger code {
+  font-size: 0.78rem;
+  background: rgba(122, 26, 26, 0.05);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--maroon-800);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.dc-table .dc-cell.dc-rationale { color: var(--ink-700); font-style: italic; }
+.dc-table .dc-cell.dc-source    { color: var(--maroon-700); font-size: 0.8rem; }
+
+@media (max-width: 900px) {
+  .dc-table { grid-template-columns: 1fr; }
+  .dc-table .dc-cell.dc-head { display: none; }
+  .dc-table .dc-cell {
+    padding: 6px 12px;
+  }
+  .dc-table .dc-cell.dc-rec {
+    padding-top: 14px;
+    font-size: 0.95rem;
+    border-top: 2px solid var(--maroon-700);
+  }
+  .dc-table .dc-cell.dc-rec:first-child { border-top: none; }
+}
